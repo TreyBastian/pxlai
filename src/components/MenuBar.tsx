@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   MenubarMenu,
   MenubarTrigger,
@@ -7,61 +7,130 @@ import {
   MenubarCheckboxItem,
   MenubarRadioGroup,
   MenubarRadioItem,
+  MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
   Menubar,
 } from '@/components/ui/menubar';
 import { useTheme } from '../contexts/ThemeContext';
+import { NewFileDialog } from './NewFileDialog';
+import { File } from '../types';
 
 interface MenuBarProps {
-  isDragDisabled: boolean;
-  setIsDragDisabled: (value: boolean) => void;
+  onCreateNewFile: (width: number, height: number) => void;
+  toggleWidget: (id: string) => void;
+  isWindowsLocked: boolean;
+  setIsWindowsLocked: (value: boolean) => void;
+  widgetVisibility: Record<string, boolean>;
+  files: File[];
+  activeFileId: string | null;
+  onSwitchFile: (fileId: string) => void;
 }
 
-export function MenuBar({ isDragDisabled, setIsDragDisabled }: MenuBarProps) {
+export function MenuBar({ 
+  onCreateNewFile, 
+  toggleWidget, 
+  isWindowsLocked, 
+  setIsWindowsLocked, 
+  widgetVisibility,
+  files,
+  activeFileId,
+  onSwitchFile
+}: MenuBarProps) {
   const { theme, setTheme } = useTheme();
+  const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
 
   return (
-    <Menubar>
-      <MenubarMenu>
-        <MenubarTrigger>File</MenubarTrigger>
-        <MenubarContent>
-          <MenubarItem>New</MenubarItem>
-          <MenubarItem>Open</MenubarItem>
-          <MenubarItem>Save</MenubarItem>
-        </MenubarContent>
-      </MenubarMenu>
-      <MenubarMenu>
-        <MenubarTrigger>Edit</MenubarTrigger>
-        <MenubarContent>
-          <MenubarItem>Undo</MenubarItem>
-          <MenubarItem>Redo</MenubarItem>
-          <MenubarItem>Cut</MenubarItem>
-          <MenubarItem>Copy</MenubarItem>
-          <MenubarItem>Paste</MenubarItem>
-        </MenubarContent>
-      </MenubarMenu>
-      <MenubarMenu>
-        <MenubarTrigger>Window</MenubarTrigger>
-        <MenubarContent>
-          <MenubarCheckboxItem
-            checked={!isDragDisabled}
-            onCheckedChange={(checked) => setIsDragDisabled(!checked)}
-          >
-            Enable Drag and Drop
-          </MenubarCheckboxItem>
-          <MenubarRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
-            <MenubarRadioItem value="light">Light</MenubarRadioItem>
-            <MenubarRadioItem value="dark">Dark</MenubarRadioItem>
-            <MenubarRadioItem value="system">System</MenubarRadioItem>
-          </MenubarRadioGroup>
-        </MenubarContent>
-      </MenubarMenu>
-      <MenubarMenu>
-        <MenubarTrigger>Help</MenubarTrigger>
-        <MenubarContent>
-          <MenubarItem>About</MenubarItem>
-          <MenubarItem>Documentation</MenubarItem>
-        </MenubarContent>
-      </MenubarMenu>
-    </Menubar>
+    <>
+      <Menubar>
+        <MenubarMenu>
+          <MenubarTrigger>File</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onSelect={() => setIsNewFileDialogOpen(true)}>New</MenubarItem>
+            <MenubarItem>Open</MenubarItem>
+            <MenubarItem>Save</MenubarItem>
+            <MenubarSeparator />
+            <MenubarSub>
+              <MenubarSubTrigger>Switch to</MenubarSubTrigger>
+              <MenubarSubContent>
+                {files.map((file) => (
+                  <MenubarItem 
+                    key={file.id} 
+                    onSelect={() => onSwitchFile(file.id)}
+                    disabled={file.id === activeFileId}
+                  >
+                    {file.name}
+                  </MenubarItem>
+                ))}
+              </MenubarSubContent>
+            </MenubarSub>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>Edit</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem>Undo</MenubarItem>
+            <MenubarItem>Redo</MenubarItem>
+            <MenubarItem>Cut</MenubarItem>
+            <MenubarItem>Copy</MenubarItem>
+            <MenubarItem>Paste</MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>View</MenubarTrigger>
+          <MenubarContent>
+            <MenubarCheckboxItem 
+              checked={widgetVisibility['tools']}
+              onCheckedChange={() => toggleWidget('tools')}
+            >
+              Tools
+            </MenubarCheckboxItem>
+            <MenubarCheckboxItem 
+              checked={widgetVisibility['colorPalette']}
+              onCheckedChange={() => toggleWidget('colorPalette')}
+            >
+              Color Palette
+            </MenubarCheckboxItem>
+            <MenubarCheckboxItem 
+              checked={widgetVisibility['colorPicker']}
+              onCheckedChange={() => toggleWidget('colorPicker')}
+            >
+              Color Picker
+            </MenubarCheckboxItem>
+            <MenubarSeparator />
+            <MenubarCheckboxItem
+              checked={isWindowsLocked}
+              onCheckedChange={setIsWindowsLocked}
+            >
+              Lock Windows
+            </MenubarCheckboxItem>
+            <MenubarSeparator />
+            <MenubarSub>
+              <MenubarSubTrigger>Appearance</MenubarSubTrigger>
+              <MenubarSubContent>
+                <MenubarRadioGroup value={theme} onValueChange={(value) => setTheme(value as any)}>
+                  <MenubarRadioItem value="light">Light</MenubarRadioItem>
+                  <MenubarRadioItem value="dark">Dark</MenubarRadioItem>
+                  <MenubarRadioItem value="system">System</MenubarRadioItem>
+                </MenubarRadioGroup>
+              </MenubarSubContent>
+            </MenubarSub>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>Help</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem>About</MenubarItem>
+            <MenubarItem>Documentation</MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>
+      <NewFileDialog
+        isOpen={isNewFileDialogOpen}
+        onClose={() => setIsNewFileDialogOpen(false)}
+        onCreateNewFile={onCreateNewFile}
+      />
+    </>
   );
 }

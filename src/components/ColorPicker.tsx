@@ -170,83 +170,87 @@ export function ColorPicker() {
   }, [currentColor, selectedColorId, updatePaletteColor]);
 
   return (
-    <div className="flex flex-col h-full">
-      <Tabs value={colorModel} onValueChange={(value) => setColorModel(value as ColorModel)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+    <div className="w-full h-full p-4 flex flex-col">
+      <Tabs value={colorModel} onValueChange={(value) => setColorModel(value as ColorModel)} className="flex flex-col h-full">
+        <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="hsla">HSLA</TabsTrigger>
           <TabsTrigger value="rgba">RGBA</TabsTrigger>
           <TabsTrigger value="cmyka">CMYKA</TabsTrigger>
         </TabsList>
-        <div className="overflow-y-auto p-4">
-          <TabsContent value="hsla" className="mt-0">
-            <ColorSlider 
-              label="Hue" 
-              value={hsla.h} 
-              min={0} 
-              max={359} 
-              onChange={(v) => handleSliderChange('hsla', 'h', v)} 
-              isHue={true}
-              hsla={hsla}
-            />
-            <ColorSlider 
-              label="Saturation" 
-              value={hsla.s} 
-              min={0} 
-              max={100} 
-              onChange={(v) => handleSliderChange('hsla', 's', v)} 
-              hsla={hsla}
-            />
-            <ColorSlider 
-              label="Lightness" 
-              value={hsla.l} 
-              min={0} 
-              max={100} 
-              onChange={(v) => handleSliderChange('hsla', 'l', v)} 
-              hsla={hsla}
-            />
-            <ColorSlider 
-              label="Alpha" 
-              value={hsla.a} 
-              min={0} 
-              max={1} 
-              onChange={(v) => handleSliderChange('hsla', 'a', v)} 
-              isAlpha 
-              hsla={hsla}
-            />
-          </TabsContent>
-          <TabsContent value="rgba" className="mt-0">
-            <ColorSlider label="Red" value={rgba.r} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'r', v)} hsla={hsla} />
-            <ColorSlider label="Green" value={rgba.g} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'g', v)} hsla={hsla} />
-            <ColorSlider label="Blue" value={rgba.b} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'b', v)} hsla={hsla} />
-            <ColorSlider label="Alpha" value={rgba.a} min={0} max={1} onChange={(v) => handleSliderChange('rgba', 'a', v)} isAlpha hsla={hsla} />
-          </TabsContent>
-          <TabsContent value="cmyka" className="mt-0">
-            <ColorSlider label="Cyan" value={cmyka.c} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'c', v)} hsla={hsla} />
-            <ColorSlider label="Magenta" value={cmyka.m} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'm', v)} hsla={hsla} />
-            <ColorSlider label="Yellow" value={cmyka.y} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'y', v)} hsla={hsla} />
-            <ColorSlider label="Key (Black)" value={cmyka.k} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'k', v)} hsla={hsla} />
-            <ColorSlider label="Alpha" value={cmyka.a} min={0} max={1} onChange={(v) => handleSliderChange('cmyka', 'a', v)} isAlpha hsla={hsla} />
-          </TabsContent>
+        <div className="flex flex-col h-full">
+          <div className="flex-grow mb-4">
+            <div 
+              className="w-full h-full rounded-lg"
+              style={{ 
+                backgroundColor: 'transparent',
+                backgroundImage: `linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                                  linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                                  linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                                  linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
+                backgroundSize: '20px 20px',
+                backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+                position: 'relative'
+              }}
+            >
+              <div
+                className="absolute inset-0 rounded-lg"
+                style={{ backgroundColor: currentColor || 'transparent' }}
+              />
+            </div>
+          </div>
+          <div className="overflow-y-auto">
+            <TabsContent value="hsla" className="mt-0">
+              <ColorSlider 
+                label="Hue" 
+                value={hsla.h} 
+                min={0} 
+                max={359} 
+                onChange={(v) => handleSliderChange('hsla', 'h', v)} 
+                isHue={true}
+                hsla={hsla}
+              />
+              <ColorSlider 
+                label="Saturation" 
+                value={hsla.s} 
+                min={0} 
+                max={100} 
+                onChange={(v) => handleSliderChange('hsla', 's', v)} 
+                hsla={hsla}
+              />
+              <ColorSlider 
+                label="Lightness" 
+                value={hsla.l} 
+                min={0} 
+                max={100} 
+                onChange={(v) => handleSliderChange('hsla', 'l', v)} 
+                hsla={hsla}
+              />
+              <ColorSlider 
+                label="Alpha" 
+                value={hsla.a} 
+                min={0} 
+                max={1} 
+                onChange={(v) => handleSliderChange('hsla', 'a', v)} 
+                isAlpha 
+                hsla={hsla}
+              />
+            </TabsContent>
+            <TabsContent value="rgba" className="mt-0">
+              <ColorSlider label="Red" value={rgba.r} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'r', v)} hsla={hsla} />
+              <ColorSlider label="Green" value={rgba.g} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'g', v)} hsla={hsla} />
+              <ColorSlider label="Blue" value={rgba.b} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'b', v)} hsla={hsla} />
+              <ColorSlider label="Alpha" value={rgba.a} min={0} max={1} onChange={(v) => handleSliderChange('rgba', 'a', v)} isAlpha hsla={hsla} />
+            </TabsContent>
+            <TabsContent value="cmyka" className="mt-0">
+              <ColorSlider label="Cyan" value={cmyka.c} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'c', v)} hsla={hsla} />
+              <ColorSlider label="Magenta" value={cmyka.m} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'm', v)} hsla={hsla} />
+              <ColorSlider label="Yellow" value={cmyka.y} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'y', v)} hsla={hsla} />
+              <ColorSlider label="Key (Black)" value={cmyka.k} min={0} max={100} onChange={(v) => handleSliderChange('cmyka', 'k', v)} hsla={hsla} />
+              <ColorSlider label="Alpha" value={cmyka.a} min={0} max={1} onChange={(v) => handleSliderChange('cmyka', 'a', v)} isAlpha hsla={hsla} />
+            </TabsContent>
+          </div>
         </div>
       </Tabs>
-      <div 
-        className="flex-grow rounded-b-lg"
-        style={{ 
-          backgroundColor: 'transparent',
-          backgroundImage: `linear-gradient(45deg, #ccc 25%, transparent 25%), 
-                            linear-gradient(-45deg, #ccc 25%, transparent 25%), 
-                            linear-gradient(45deg, transparent 75%, #ccc 75%), 
-                            linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
-          backgroundSize: '20px 20px',
-          backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-          position: 'relative'
-        }}
-      >
-        <div
-          className="absolute inset-0 rounded-b-lg"
-          style={{ backgroundColor: currentColor || 'transparent' }}
-        />
-      </div>
     </div>
   );
 }

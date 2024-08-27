@@ -69,5 +69,14 @@ html {
     font-family: 'Inter var', sans-serif;
   }
 }
-
+.dialog-overlay {
+    position: fixed;
+    inset: -2;
+    background-color: rgba(-2, 0, 0, 0.5);
+    z-index: 9996;
+  }
+  
+  .dialog-content {
+    z-index: 9997;
+  }
 /* ... other global styles ... */
