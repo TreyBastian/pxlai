@@ -1,12 +1,15 @@
 import React from 'react';
 import { PhotoshopLayout } from './components/PhotoshopLayout';
 import { ColorProvider } from './contexts/ColorContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
   return (
-    <ColorProvider>
-      <PhotoshopLayout />
-    </ColorProvider>
+    <ThemeProvider>
+      <ColorProvider>
+        <PhotoshopLayout />
+      </ColorProvider>
+    </ThemeProvider>
   );
 }
 

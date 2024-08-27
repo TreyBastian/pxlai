@@ -4,10 +4,21 @@ import {
   MenubarTrigger,
   MenubarContent,
   MenubarItem,
+  MenubarCheckboxItem,
+  MenubarRadioGroup,
+  MenubarRadioItem,
   Menubar,
 } from '@/components/ui/menubar';
+import { useTheme } from '../contexts/ThemeContext';
 
-export function MenuBar() {
+interface MenuBarProps {
+  isDragDisabled: boolean;
+  setIsDragDisabled: (value: boolean) => void;
+}
+
+export function MenuBar({ isDragDisabled, setIsDragDisabled }: MenuBarProps) {
+  const { theme, setTheme } = useTheme();
+
   return (
     <Menubar>
       <MenubarMenu>
@@ -26,6 +37,22 @@ export function MenuBar() {
           <MenubarItem>Cut</MenubarItem>
           <MenubarItem>Copy</MenubarItem>
           <MenubarItem>Paste</MenubarItem>
+        </MenubarContent>
+      </MenubarMenu>
+      <MenubarMenu>
+        <MenubarTrigger>Window</MenubarTrigger>
+        <MenubarContent>
+          <MenubarCheckboxItem
+            checked={!isDragDisabled}
+            onCheckedChange={(checked) => setIsDragDisabled(!checked)}
+          >
+            Enable Drag and Drop
+          </MenubarCheckboxItem>
+          <MenubarRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+            <MenubarRadioItem value="light">Light</MenubarRadioItem>
+            <MenubarRadioItem value="dark">Dark</MenubarRadioItem>
+            <MenubarRadioItem value="system">System</MenubarRadioItem>
+          </MenubarRadioGroup>
         </MenubarContent>
       </MenubarMenu>
       <MenubarMenu>

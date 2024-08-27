@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MenuBar } from './MenuBar';
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from '@/components/ui/resizable';
 import { Canvas } from './Canvas';
@@ -9,8 +9,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { useTheme } from '../contexts/ThemeContext';
 
 const widgets = [
   { id: 'tools', component: ToolWidget },
@@ -52,6 +51,11 @@ function SortableWidget({ id, component: Component, isDragDisabled }) {
 export function PhotoshopLayout() {
   const [widgetOrder, setWidgetOrder] = useState(widgets);
   const [isDragDisabled, setIsDragDisabled] = useState(true);
+  const { theme } = useTheme();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -74,15 +78,7 @@ export function PhotoshopLayout() {
 
   return (
     <div className="h-screen flex flex-col">
-      <MenuBar />
-      <div className="flex items-center space-x-2 p-2 bg-gray-100">
-        <Switch
-          id="drag-mode"
-          checked={!isDragDisabled}
-          onCheckedChange={(checked) => setIsDragDisabled(!checked)}
-        />
-        <Label htmlFor="drag-mode">Enable Drag and Drop</Label>
-      </div>
+      <MenuBar isDragDisabled={isDragDisabled} setIsDragDisabled={setIsDragDisabled} />
       <ResizablePanelGroup direction="horizontal" className="flex-grow">
         <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
           <DndContext

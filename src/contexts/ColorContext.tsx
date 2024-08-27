@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Color {
   id: string;
@@ -6,35 +7,94 @@ interface Color {
   name?: string;
 }
 
+type SortOrder = 'default' | 'lightness-asc' | 'lightness-desc';
+
 interface ColorContextType {
-  currentColor: string;
+  currentColor: string | null;
+  setCurrentColor: (color: string | null) => void;
   palette: Color[];
-  setCurrentColor: (color: string) => void;
+  sortedPalette: Color[];
   addToPalette: (color: string) => void;
   deletePaletteItem: (id: string) => void;
   reorderPalette: (newPalette: Color[]) => void;
   loadPalette: (file: File) => Promise<void>;
   saveASEPalette: () => Blob;
   saveGPLPalette: () => Blob;
+  sortOrder: SortOrder;
+  toggleSortOrder: () => void;
+  updatePaletteColor: (id: string, newColor: string) => void;
+  selectedColorId: string | null;
+  setSelectedColorId: (id: string | null) => void;
 }
 
 const ColorContext = createContext<ColorContextType | undefined>(undefined);
 
 export function ColorProvider({ children }: { children: React.ReactNode }) {
-  const [currentColor, setCurrentColor] = useState('rgba(255, 0, 0, 1)');
+  const [currentColor, setCurrentColor] = useState<string | null>(null);
   const [palette, setPalette] = useState<Color[]>([]);
+  const [sortOrder, setSortOrder] = useState<SortOrder>('default');
+  const [originalOrder, setOriginalOrder] = useState<string[]>([]);
+  const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
 
-  const addToPalette = (color: string) => {
-    setPalette(prev => [...prev, { id: Date.now().toString(), value: color }]);
-  };
+  useEffect(() => {
+    if (palette.length > 0 && originalOrder.length === 0) {
+      setOriginalOrder(palette.map(color => color.id));
+    }
+  }, [palette, originalOrder]);
 
-  const deletePaletteItem = (id: string) => {
-    setPalette(prev => prev.filter(color => color.id !== id));
-  };
+  const addToPalette = useCallback((color: string) => {
+    setPalette(prev => {
+      const newPalette = [...prev, { id: uuidv4(), value: color }];
+      setOriginalOrder(newPalette.map(c => c.id));
+      return newPalette;
+    });
+  }, []);
 
-  const reorderPalette = (newPalette: Color[]) => {
+  const deletePaletteItem = useCallback((id: string) => {
+    setPalette(prev => {
+      const newPalette = prev.filter(color => color.id !== id);
+      setOriginalOrder(newPalette.map(c => c.id));
+      return newPalette;
+    });
+  }, []);
+
+  const reorderPalette = useCallback((newPalette: Color[]) => {
     setPalette(newPalette);
-  };
+    setOriginalOrder(newPalette.map(c => c.id));
+  }, []);
+
+  const toggleSortOrder = useCallback(() => {
+    setSortOrder(prevOrder => {
+      const orders: SortOrder[] = ['default', 'lightness-asc', 'lightness-desc'];
+      const currentIndex = orders.indexOf(prevOrder);
+      return orders[(currentIndex + 1) % orders.length];
+    });
+  }, []);
+
+  const getLightness = useCallback((color: string) => {
+    const rgb = color.match(/\d+/g);
+    if (rgb) {
+      const [r, g, b] = rgb.map(Number);
+      return (Math.max(r, g, b) + Math.min(r, g, b)) / (2 * 255);
+    }
+    return 0;
+  }, []);
+
+  const sortedPalette = useMemo(() => {
+    if (sortOrder === 'default') {
+      return [...palette].sort((a, b) => 
+        originalOrder.indexOf(a.id) - originalOrder.indexOf(b.id)
+      );
+    } else {
+      return [...palette].sort((a, b) => {
+        const lightnessA = getLightness(a.value);
+        const lightnessB = getLightness(b.value);
+        return sortOrder === 'lightness-asc' 
+          ? lightnessA - lightnessB 
+          : lightnessB - lightnessA;
+      });
+    }
+  }, [palette, sortOrder, originalOrder, getLightness]);
 
   const loadPalette = async (file: File) => {
     try {
@@ -111,14 +171,17 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
           offset += 4;
           const b = view.getFloat32(offset, false);
           offset += 4;
+          // Assume alpha of 1 if not provided
+          const a = blockLength === 40 ? view.getFloat32(offset, false) : 1;
+          offset += blockLength === 40 ? 4 : 0;
 
           newPalette.push({
             id: Date.now().toString() + newPalette.length,
-            value: `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`,
+            value: `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a})`,
             name: name || `Color ${newPalette.length + 1}`
           });
 
-          console.log(`Added color: ${name}, rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`);
+          console.log(`Added color: ${name}, rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a})`);
         } else if (colorModel === 'CMYK') {
           const c = view.getFloat32(offset, false);
           offset += 4;
@@ -136,11 +199,11 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
 
           newPalette.push({
             id: Date.now().toString() + newPalette.length,
-            value: `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`,
+            value: `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 1)`,
             name: name || `Color ${newPalette.length + 1}`
           });
 
-          console.log(`Added color: ${name}, cmyk(${c}, ${m}, ${y}, ${k})`);
+          console.log(`Added color: ${name}, cmyk(${c}, ${m}, ${y}, ${k}) converted to rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 1)`);
         } else {
           console.log(`Skipping unsupported color model: ${colorModel}`);
         }
@@ -186,12 +249,12 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line && !line.startsWith('#')) {
-        const [r, g, b, ...nameParts] = line.split(/\s+/);
+        const [r, g, b, a, ...nameParts] = line.split(/\s+/);
         const name = nameParts.join(' ');
         if (r && g && b) {
           newPalette.push({
             id: Date.now().toString() + i,
-            value: `rgb(${r}, ${g}, ${b})`,
+            value: `rgba(${r}, ${g}, ${b}, ${a || 1})`,
             name: name || `Color ${i}`
           });
         }
@@ -249,12 +312,14 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
       // Parse RGB values
       const rgbMatch = color.value.match(/\d+/g);
       if (rgbMatch) {
-        const [r, g, b] = rgbMatch.map(Number);
+        const [r, g, b, a] = rgbMatch.map(Number);
         view.setFloat32(offset, r / 255, false);
         offset += 4;
         view.setFloat32(offset, g / 255, false);
         offset += 4;
         view.setFloat32(offset, b / 255, false);
+        offset += 4;
+        view.setFloat32(offset, a, false);
         offset += 4;
       }
 
@@ -275,50 +340,39 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     palette.forEach((color) => {
       const rgbMatch = color.value.match(/\d+/g);
       if (rgbMatch) {
-        const [r, g, b] = rgbMatch.map(Number);
-        content += `${r.toString().padStart(3)} ${g.toString().padStart(3)} ${b.toString().padStart(3)}    ${color.name || ''}\n`;
+        const [r, g, b, a] = rgbMatch.map(Number);
+        content += `${r.toString().padStart(3)} ${g.toString().padStart(3)} ${b.toString().padStart(3)} ${a.toFixed(2)}    ${color.name || ''}\n`;
       }
     });
 
     return new Blob([content], { type: 'text/plain' });
   };
 
-  function hexdump(buffer: ArrayBuffer, start: number, length: number) {
-    const view = new DataView(buffer);
-    let result = '';
-    for (let i = start; i < start + length && i < buffer.byteLength; i += 16) {
-      let line = `${i.toString(16).padStart(8, '0')}: `;
-      for (let j = 0; j < 16; j++) {
-        if (i + j < buffer.byteLength) {
-          line += view.getUint8(i + j).toString(16).padStart(2, '0') + ' ';
-        } else {
-          line += '   ';
-        }
-        if (j === 7) line += ' ';
-      }
-      line += ' ';
-      for (let j = 0; j < 16; j++) {
-        if (i + j < buffer.byteLength) {
-          const byte = view.getUint8(i + j);
-          line += byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
-        }
-      }
-      result += line + '\n';
-    }
-    return result;
-  }
+  const updatePaletteColor = useCallback((id: string, newColor: string) => {
+    setPalette(prevPalette => 
+      prevPalette.map(color => 
+        color.id === id ? { ...color, value: newColor } : color
+      )
+    );
+  }, []);
 
   return (
     <ColorContext.Provider value={{
       currentColor,
-      palette,
       setCurrentColor,
+      palette,
+      sortedPalette,
       addToPalette,
       deletePaletteItem,
       reorderPalette,
       loadPalette,
       saveASEPalette,
-      saveGPLPalette
+      saveGPLPalette,
+      sortOrder,
+      toggleSortOrder,
+      updatePaletteColor,
+      selectedColorId,
+      setSelectedColorId,
     }}>
       {children}
     </ColorContext.Provider>
