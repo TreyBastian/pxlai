@@ -68,21 +68,25 @@ function SortableItem({ id, value, isSelected, onSelect, onDelete }: SortableIte
   );
 }
 
-export function ColorPalette() {
+interface ColorPaletteProps {
+  fileId: string | null;
+}
+
+export function ColorPalette({ fileId }: ColorPaletteProps) {
   const { 
-    currentColor, 
+    getFileColorState,
     setCurrentColor, 
-    sortedPalette, 
+    addToPalette,
     deletePaletteItem, 
     reorderPalette, 
     loadPalette, 
     saveASEPalette, 
     saveGPLPalette, 
-    sortOrder, 
     toggleSortOrder, 
-    addToPalette,
     setSelectedColorId
   } = useColor();
+
+  const fileColorState = getFileColorState(fileId);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const DEFAULT_NEW_COLOR = 'rgba(200, 200, 200, 1)';
@@ -102,9 +106,9 @@ export function ColorPalette() {
     const { active, over } = event;
 
     if (active.id !== over.id) {
-      const oldIndex = sortedPalette.findIndex((item) => item.id === active.id);
-      const newIndex = sortedPalette.findIndex((item) => item.id === over.id);
-      reorderPalette(arrayMove(sortedPalette, oldIndex, newIndex));
+      const oldIndex = fileColorState?.palette?.findIndex((item) => item.id === active.id);
+      const newIndex = fileColorState?.palette?.findIndex((item) => item.id === over.id);
+      reorderPalette(fileId, arrayMove(fileColorState?.palette || [], oldIndex, newIndex));
       if (selectedIndex === oldIndex) {
         setSelectedIndex(newIndex);
       } else if (selectedIndex === newIndex) {
@@ -114,34 +118,41 @@ export function ColorPalette() {
   };
 
   const handleAddNewColor = () => {
-    const newColor = currentColor || DEFAULT_NEW_COLOR;
-    addToPalette(newColor);
-    setSelectedIndex(sortedPalette.length);
-    setCurrentColor(newColor);
+    if (!fileId) return;
+    const newColor = fileColorState?.currentColor || DEFAULT_NEW_COLOR;
+    addToPalette(fileId, newColor);
+    setSelectedIndex(fileColorState?.palette?.length || 0);
+    setCurrentColor(fileId, newColor);
   };
 
   const handleSelectColor = (index: number) => {
+    if (!fileId) return;
     if (selectedIndex === index) {
       setSelectedIndex(null);
-      setCurrentColor(null);
-      setSelectedColorId(null);
+      setCurrentColor(fileId, null);
+      setSelectedColorId(fileId, null);
     } else {
       setSelectedIndex(index);
-      setCurrentColor(sortedPalette[index].value);
-      setSelectedColorId(sortedPalette[index].id);
+      setCurrentColor(fileId, fileColorState?.palette?.[index]?.value || null);
+      setSelectedColorId(fileId, fileColorState?.palette?.[index]?.id || null);
     }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!fileId) return;
     const file = event.target.files?.[0];
     if (file) {
       try {
-        await loadPalette(file);
+        await loadPalette(fileId, file);
       } catch (error) {
         console.error('Failed to load palette:', error);
       }
     }
   };
+
+  if (!fileId || !fileColorState) {
+    return <div>No file selected</div>;
+  }
 
   return (
     <div className="p-4">
@@ -154,9 +165,9 @@ export function ColorPalette() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[10000]">
-            <DropdownMenuItem onSelect={toggleSortOrder}>Toggle Sort Order</DropdownMenuItem>
-            <DropdownMenuItem onSelect={saveASEPalette}>Save ASE</DropdownMenuItem>
-            <DropdownMenuItem onSelect={saveGPLPalette}>Save GPL</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => toggleSortOrder(fileId)}>Toggle Sort Order</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => saveASEPalette(fileId)}>Save ASE</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => saveGPLPalette(fileId)}>Save GPL</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => document.getElementById('file-upload')?.click()}>
               Load Palette
             </DropdownMenuItem>
@@ -171,16 +182,16 @@ export function ColorPalette() {
         />
       </div>
       <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
-        <SortableContext items={sortedPalette.map(item => item.id)}>
+        <SortableContext items={fileColorState?.palette?.map(item => item.id) || []}>
           <div className="grid grid-cols-4 gap-4">
-            {sortedPalette.map((color, index) => (
+            {fileColorState?.palette?.map((color, index) => (
               <SortableItem
                 key={color.id}
                 id={color.id}
                 value={color.value}
                 isSelected={selectedIndex === index}
                 onSelect={() => handleSelectColor(index)}
-                onDelete={() => deletePaletteItem(color.id)}
+                onDelete={() => deletePaletteItem(fileId, color.id)}
               />
             ))}
             <TooltipProvider>

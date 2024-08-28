@@ -26,6 +26,8 @@ interface MenuBarProps {
   files: File[];
   activeFileId: string | null;
   onSwitchFile: (fileId: string) => void;
+  onSaveFile: (fileId: string) => void;
+  onLoadFile: () => void;
 }
 
 export function MenuBar({ 
@@ -36,7 +38,9 @@ export function MenuBar({
   widgetVisibility,
   files,
   activeFileId,
-  onSwitchFile
+  onSwitchFile,
+  onSaveFile,
+  onLoadFile
 }: MenuBarProps) {
   const { theme, setTheme } = useTheme();
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
@@ -59,8 +63,8 @@ export function MenuBar({
           <MenubarTrigger>File</MenubarTrigger>
           <MenubarContent style={dropdownStyles}>
             <MenubarItem onSelect={() => setIsNewFileDialogOpen(true)}>New</MenubarItem>
-            <MenubarItem>Open</MenubarItem>
-            <MenubarItem>Save</MenubarItem>
+            <MenubarItem onSelect={onLoadFile}>Open</MenubarItem>
+            <MenubarItem onSelect={() => activeFileId && onSaveFile(activeFileId)} disabled={!activeFileId}>Save</MenubarItem>
             <MenubarSeparator />
             <MenubarSub>
               <MenubarSubTrigger>Switch to</MenubarSubTrigger>

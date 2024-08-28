@@ -9,106 +9,151 @@ interface Color {
 
 type SortOrder = 'default' | 'lightness-asc' | 'lightness-desc';
 
-interface ColorContextType {
+interface FileColorState {
   currentColor: string | null;
-  setCurrentColor: (color: string | null) => void;
   palette: Color[];
-  sortedPalette: Color[];
-  addToPalette: (color: string) => void;
-  deletePaletteItem: (id: string) => void;
-  reorderPalette: (newPalette: Color[]) => void;
-  loadPalette: (file: File) => Promise<void>;
-  saveASEPalette: () => Blob;
-  saveGPLPalette: () => Blob;
   sortOrder: SortOrder;
-  toggleSortOrder: () => void;
-  updatePaletteColor: (id: string, newColor: string) => void;
   selectedColorId: string | null;
-  setSelectedColorId: (id: string | null) => void;
+}
+
+interface ColorContextType {
+  getFileColorState: (fileId: string | null) => FileColorState | null;
+  setCurrentColor: (fileId: string, color: string | null) => void;
+  addToPalette: (fileId: string, color: string) => void;
+  deletePaletteItem: (fileId: string, colorId: string) => void;
+  reorderPalette: (fileId: string, newPalette: Color[]) => void;
+  loadPalette: (fileId: string, file: File) => Promise<void>;
+  saveASEPalette: (fileId: string) => Blob;
+  saveGPLPalette: (fileId: string) => Blob;
+  toggleSortOrder: (fileId: string) => void;
+  updatePaletteColor: (fileId: string, colorId: string, newColor: string) => void;
+  setSelectedColorId: (fileId: string, colorId: string | null) => void;
+  getCurrentColor: (fileId: string | null) => string | null;
+  saveFile: (fileId: string, fileName: string, width: number, height: number) => void;
+  loadFile: (file: File) => Promise<{
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    canvasData: string;
+  }>;
 }
 
 const ColorContext = createContext<ColorContextType | undefined>(undefined);
 
+const CURRENT_FILE_VERSION = "0.1";
+
 export function ColorProvider({ children }: { children: React.ReactNode }) {
-  const [currentColor, setCurrentColor] = useState<string | null>(null);
-  const [palette, setPalette] = useState<Color[]>([]);
-  const [sortOrder, setSortOrder] = useState<SortOrder>('default');
-  const [originalOrder, setOriginalOrder] = useState<string[]>([]);
-  const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+  const [fileColorStates, setFileColorStates] = useState<Record<string, FileColorState>>({});
 
-  useEffect(() => {
-    if (palette.length > 0 && originalOrder.length === 0) {
-      setOriginalOrder(palette.map(color => color.id));
+  const getFileColorState = useCallback((fileId: string | null) => {
+    if (!fileId) return null;
+    if (!fileColorStates[fileId]) {
+      // Initialize state for new file
+      setFileColorStates(prev => ({
+        ...prev,
+        [fileId]: {
+          currentColor: null,
+          palette: [],
+          sortOrder: 'default',
+          selectedColorId: null
+        }
+      }));
     }
-  }, [palette, originalOrder]);
+    return fileColorStates[fileId];
+  }, [fileColorStates]);
 
-  const addToPalette = useCallback((color: string) => {
-    setPalette(prev => {
-      const newPalette = [...prev, { id: uuidv4(), value: color }];
-      setOriginalOrder(newPalette.map(c => c.id));
-      return newPalette;
-    });
+  const setCurrentColor = useCallback((fileId: string, color: string | null) => {
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        currentColor: color
+      }
+    }));
   }, []);
 
-  const deletePaletteItem = useCallback((id: string) => {
-    setPalette(prev => {
-      const newPalette = prev.filter(color => color.id !== id);
-      setOriginalOrder(newPalette.map(c => c.id));
-      return newPalette;
-    });
+  const addToPalette = useCallback((fileId: string, color: string) => {
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        palette: [...prev[fileId].palette, { id: uuidv4(), value: color }]
+      }
+    }));
   }, []);
 
-  const reorderPalette = useCallback((newPalette: Color[]) => {
-    setPalette(newPalette);
-    setOriginalOrder(newPalette.map(c => c.id));
+  const deletePaletteItem = useCallback((fileId: string, colorId: string) => {
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        palette: prev[fileId].palette.filter(color => color.id !== colorId)
+      }
+    }));
   }, []);
 
-  const toggleSortOrder = useCallback(() => {
-    setSortOrder(prevOrder => {
+  const reorderPalette = useCallback((fileId: string, newPalette: Color[]) => {
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        palette: newPalette
+      }
+    }));
+  }, []);
+
+  const toggleSortOrder = useCallback((fileId: string) => {
+    setFileColorStates(prev => {
+      const currentOrder = prev[fileId].sortOrder;
       const orders: SortOrder[] = ['default', 'lightness-asc', 'lightness-desc'];
-      const currentIndex = orders.indexOf(prevOrder);
-      return orders[(currentIndex + 1) % orders.length];
+      const currentIndex = orders.indexOf(currentOrder);
+      const newOrder = orders[(currentIndex + 1) % orders.length];
+      return {
+        ...prev,
+        [fileId]: {
+          ...prev[fileId],
+          sortOrder: newOrder
+        }
+      };
     });
   }, []);
 
-  const getLightness = useCallback((color: string) => {
-    const rgb = color.match(/\d+/g);
-    if (rgb) {
-      const [r, g, b] = rgb.map(Number);
-      return (Math.max(r, g, b) + Math.min(r, g, b)) / (2 * 255);
-    }
-    return 0;
+  const updatePaletteColor = useCallback((fileId: string, colorId: string, newColor: string) => {
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        palette: prev[fileId].palette.map(color => 
+          color.id === colorId ? { ...color, value: newColor } : color
+        )
+      }
+    }));
   }, []);
 
-  const sortedPalette = useMemo(() => {
-    if (sortOrder === 'default') {
-      return [...palette].sort((a, b) => 
-        originalOrder.indexOf(a.id) - originalOrder.indexOf(b.id)
-      );
-    } else {
-      return [...palette].sort((a, b) => {
-        const lightnessA = getLightness(a.value);
-        const lightnessB = getLightness(b.value);
-        return sortOrder === 'lightness-asc' 
-          ? lightnessA - lightnessB 
-          : lightnessB - lightnessA;
-      });
-    }
-  }, [palette, sortOrder, originalOrder, getLightness]);
+  const setSelectedColorId = useCallback((fileId: string, colorId: string | null) => {
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileId]: {
+        ...prev[fileId],
+        selectedColorId: colorId
+      }
+    }));
+  }, []);
 
-  const loadPalette = async (file: File) => {
+  const loadPalette = async (fileId: string, file: File) => {
     const extension = file.name.split('.').pop()?.toLowerCase();
     if (extension === 'ase') {
       const buffer = await file.arrayBuffer();
-      await loadASEPalette(buffer);
+      await loadASEPalette(fileId, buffer);
     } else if (extension === 'gpl') {
-      await loadGPLPalette(file);
+      await loadGPLPalette(fileId, file);
     } else {
       throw new Error('Unsupported file format');
     }
   };
 
-  const loadASEPalette = async (buffer: ArrayBuffer) => {
+  const loadASEPalette = async (fileId: string, buffer: ArrayBuffer) => {
     const view = new DataView(buffer);
     const newPalette: Color[] = [];
     let offset = 0;
@@ -215,13 +260,19 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     console.log(`Total colors loaded: ${newPalette.length}`);
 
     if (newPalette.length > 0) {
-      setPalette(newPalette);
+      setFileColorStates(prev => ({
+        ...prev,
+        [fileId]: {
+          ...prev[fileId],
+          palette: newPalette
+        }
+      }));
     } else {
       throw new Error('No valid colors found in the ASE file');
     }
   };
 
-  const loadGPLPalette = async (file: File) => {
+  const loadGPLPalette = async (fileId: string, file: File) => {
     const text = await file.text();
     const lines = text.split(/\r\n|\n|\r/);
     const newPalette: Color[] = [];
@@ -249,14 +300,20 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (newPalette.length > 0) {
-      setPalette(newPalette);
-      setOriginalOrder(newPalette.map(c => c.id));
+      setFileColorStates(prev => ({
+        ...prev,
+        [fileId]: {
+          ...prev[fileId],
+          palette: newPalette
+        }
+      }));
     } else {
       throw new Error('No valid colors found in the GPL file');
     }
   };
 
-  const saveASEPalette = () => {
+  const saveASEPalette = (fileId: string) => {
+    const palette = fileColorStates[fileId]?.palette || [];
     const buffer = new ArrayBuffer(12 + palette.length * 40); // Approximate size
     const view = new DataView(buffer);
     let offset = 0;
@@ -323,7 +380,8 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     return new Blob([buffer], { type: 'application/octet-stream' });
   };
 
-  const saveGPLPalette = () => {
+  const saveGPLPalette = (fileId: string) => {
+    const palette = fileColorStates[fileId]?.palette || [];
     let content = 'GIMP Palette\n';
     content += '# Generated by Your App Name\n';
     content += `# Palette Name: Custom Palette\n`;
@@ -340,41 +398,109 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     return new Blob([content], { type: 'text/plain' });
   };
 
-  const updatePaletteColor = useCallback((id: string, newColor: string) => {
-    setPalette(prevPalette => 
-      prevPalette.map(color => 
-        color.id === id ? { ...color, value: newColor } : color
-      )
-    );
+  const getCurrentColor = useCallback((fileId: string | null) => {
+    if (!fileId) return null;
+    return fileColorStates[fileId]?.currentColor || null;
+  }, [fileColorStates]);
+
+  const saveFile = useCallback((fileId: string, fileName: string, width: number, height: number) => {
+    const fileState = fileColorStates[fileId];
+    if (!fileState) return;
+
+    const canvas = document.querySelector(`canvas[data-file-id="${fileId}"]`) as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const fileData = {
+      version: CURRENT_FILE_VERSION,
+      id: fileId,
+      name: fileName,
+      width: width,
+      height: height,
+      currentColor: fileState.currentColor,
+      palette: fileState.palette,
+      sortOrder: fileState.sortOrder,
+      selectedColorId: fileState.selectedColorId,
+      canvasData: canvas.toDataURL(),
+    };
+
+    const blob = new Blob([JSON.stringify(fileData)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.pxlai`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [fileColorStates]);
+
+  const loadFile = useCallback(async (file: File) => {
+    const text = await file.text();
+    const fileData = JSON.parse(text);
+
+    if (!fileData.version) {
+      console.warn("Loading file with no version number. Assuming version 0.1");
+      fileData.version = "0.1";
+    }
+
+    // Here you can add version-specific loading logic if needed
+    switch (fileData.version) {
+      case "0.1":
+        // Current version, load as is
+        break;
+      // Add cases for future versions here
+      default:
+        console.warn(`Unknown file version: ${fileData.version}. Attempting to load anyway.`);
+    }
+
+    setFileColorStates(prev => ({
+      ...prev,
+      [fileData.id]: {
+        currentColor: fileData.currentColor,
+        palette: fileData.palette,
+        sortOrder: fileData.sortOrder,
+        selectedColorId: fileData.selectedColorId,
+      }
+    }));
+
+    // Return the loaded data so it can be used to create a new file in PhotoshopLayout
+    return {
+      version: fileData.version,
+      id: fileData.id,
+      name: fileData.name,
+      width: fileData.width,
+      height: fileData.height,
+      canvasData: fileData.canvasData,
+    };
   }, []);
 
   return (
     <ColorContext.Provider value={{
-      currentColor,
+      getFileColorState,
       setCurrentColor,
-      palette,
-      sortedPalette,
       addToPalette,
       deletePaletteItem,
       reorderPalette,
       loadPalette,
       saveASEPalette,
       saveGPLPalette,
-      sortOrder,
       toggleSortOrder,
       updatePaletteColor,
-      selectedColorId,
       setSelectedColorId,
+      getCurrentColor,
+      saveFile,
+      loadFile,
     }}>
       {children}
     </ColorContext.Provider>
   );
 }
 
-export function useColor() {
+export const useColor = () => {
   const context = useContext(ColorContext);
   if (context === undefined) {
     throw new Error('useColor must be used within a ColorProvider');
   }
   return context;
-}
+};

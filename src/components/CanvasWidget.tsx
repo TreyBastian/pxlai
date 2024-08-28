@@ -51,6 +51,8 @@ export function CanvasWidget({ file, isActive, onClose, onPositionChange, isLock
           height={file.height} 
           zoom={zoom}
           onZoomChange={handleZoomChange}
+          fileId={file.id}
+          isActive={isActive}
         />
       </div>
     </BaseWidget>

@@ -96,8 +96,12 @@ const ColorSlider = React.memo(({ label, value, min = 0, max = 100, onChange, is
 
 type ColorModel = 'hsla' | 'rgba' | 'cmyka';
 
-export function ColorPicker() {
-  const { currentColor, setCurrentColor, updatePaletteColor, selectedColorId } = useColor();
+interface ColorPickerProps {
+  fileId: string | null;
+}
+
+export function ColorPicker({ fileId }: ColorPickerProps) {
+  const { getFileColorState, setCurrentColor, updatePaletteColor } = useColor();
   const [colorModel, setColorModel] = useState<ColorModel>('rgba');
   const [hsla, setHsla] = useState({ h: 0, s: 100, l: 50, a: 1 });
   const [rgba, setRgba] = useState({ r: 200, g: 200, b: 200, a: 1 });
@@ -120,18 +124,24 @@ export function ColorPicker() {
   }, []);
 
   useEffect(() => {
-    if (currentColor) {
-      const rgbaValues = currentColor.match(/\d+(\.\d+)?/g);
-      if (rgbaValues && rgbaValues.length === 4) {
-        const [r, g, b, a] = rgbaValues.map(Number);
-        updateAllColors({ r, g, b, a });
+    if (fileId) {
+      const fileColorState = getFileColorState(fileId);
+      const currentColor = fileColorState?.currentColor;
+      if (currentColor) {
+        const rgbaValues = currentColor.match(/\d+(\.\d+)?/g);
+        if (rgbaValues && rgbaValues.length === 4) {
+          const [r, g, b, a] = rgbaValues.map(Number);
+          updateAllColors({ r, g, b, a });
+        }
+      } else {
+        updateAllColors({ r: 200, g: 200, b: 200, a: 1 });
       }
-    } else {
-      updateAllColors({ r: 200, g: 200, b: 200, a: 1 });
     }
-  }, [currentColor, updateAllColors]);
+  }, [fileId, getFileColorState, updateAllColors]);
 
   const handleSliderChange = useCallback((model: ColorModel, component: string, value: number) => {
+    if (!fileId) return;
+
     let newColor;
     switch (model) {
       case 'hsla':
@@ -160,14 +170,23 @@ export function ColorPicker() {
     
     // Update currentColor in real-time
     const updatedColor = `rgba(${Math.round(newColor.r)}, ${Math.round(newColor.g)}, ${Math.round(newColor.b)}, ${newColor.a})`;
-    setCurrentColor(updatedColor);
-  }, [hsla, rgba, cmyka, updateAllColors, setCurrentColor]);
+    setCurrentColor(fileId, updatedColor);
+  }, [fileId, hsla, rgba, cmyka, updateAllColors, setCurrentColor]);
 
   useEffect(() => {
-    if (currentColor && selectedColorId) {
-      updatePaletteColor(selectedColorId, currentColor);
+    if (fileId) {
+      const fileColorState = getFileColorState(fileId);
+      const currentColor = fileColorState?.currentColor;
+      const selectedColorId = fileColorState?.selectedColorId;
+      if (currentColor && selectedColorId) {
+        updatePaletteColor(fileId, selectedColorId, currentColor);
+      }
     }
-  }, [currentColor, selectedColorId, updatePaletteColor]);
+  }, [fileId, getFileColorState, updatePaletteColor]);
+
+  if (!fileId) {
+    return <div>No file selected</div>;
+  }
 
   return (
     <div className="w-full h-full p-4 flex flex-col">
@@ -194,7 +213,7 @@ export function ColorPicker() {
             >
               <div
                 className="absolute inset-0 rounded-lg"
-                style={{ backgroundColor: currentColor || 'transparent' }}
+                style={{ backgroundColor: `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})` }}
               />
             </div>
           </div>

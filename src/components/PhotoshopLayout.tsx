@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MenuBar } from './MenuBar';
 import { ColorPicker } from './ColorPicker';
 import { ColorPalette } from './ColorPalette';
@@ -8,6 +8,7 @@ import { BaseWidget } from './BaseWidget';
 import { CanvasWidget } from './CanvasWidget';
 import { File } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { useColor } from '../contexts/ColorContext';
 
 interface PhotoshopLayoutProps {}
 
@@ -20,6 +21,7 @@ interface WidgetData {
 
 export function PhotoshopLayout({}: PhotoshopLayoutProps) {
   const { theme } = useTheme();
+  const { saveFile, loadFile } = useColor();
   const [widgets, setWidgets] = useState<WidgetData[]>([
     { id: 'tools', component: ToolWidget, isVisible: true, position: { x: 10, y: 10 } },
     { id: 'colorPalette', component: ColorPalette, isVisible: true, position: { x: 10, y: 420 } },
@@ -30,6 +32,7 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleWidget = (id: string) => {
     setWidgets(widgets.map(widget => 
@@ -81,6 +84,56 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
     setActiveWidgetId(id);
   };
 
+  const handleSaveFile = (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (file) {
+      saveFile(fileId, file.name, file.width, file.height);
+    }
+  };
+
+  const handleLoadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        const loadedData = await loadFile(file);
+        console.log(`Loaded file version: ${loadedData.version}`);
+        
+        const newFile: File = {
+          id: loadedData.id,
+          name: loadedData.name,
+          width: loadedData.width,
+          height: loadedData.height,
+          position: { x: 300, y: 50 },
+        };
+        setFiles(prevFiles => [...prevFiles, newFile]);
+        setActiveFileId(newFile.id);
+
+        // Load the canvas data
+        setTimeout(() => {
+          const canvas = document.querySelector(`canvas[data-file-id="${newFile.id}"]`) as HTMLCanvasElement;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+              ctx?.drawImage(img, 0, 0);
+            };
+            img.src = loadedData.canvasData;
+          }
+        }, 0);
+      } catch (error) {
+        console.error('Failed to load file:', error);
+      }
+    }
+  };
+
+  const handleBackgroundClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Check if the click target is the background div itself
+    if (e.target === e.currentTarget) {
+      setActiveFileId(null);
+      setActiveWidgetId(null);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col">
       <MenuBar 
@@ -92,8 +145,13 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
         files={files}
         activeFileId={activeFileId}
         onSwitchFile={handleSwitchFile}
+        onSaveFile={handleSaveFile}
+        onLoadFile={() => fileInputRef.current?.click()}
       />
-      <div className="flex-grow relative">
+      <div 
+        className="flex-grow relative"
+        onClick={handleBackgroundClick} // Add this line
+      >
         {/* Render canvas widgets first */}
         {files.map((file) => (
           <CanvasWidget
@@ -123,11 +181,22 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
               onActivate={() => handleActivateWidget(id)}
               zIndex={1000 + widgets.indexOf({ id, component: Widget, isVisible, position })}
             >
-              <Widget />
+              {id === 'colorPalette' || id === 'colorPicker' ? (
+                <Widget fileId={activeFileId || null} />
+              ) : (
+                <Widget />
+              )}
             </BaseWidget>
           )
         ))}
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pxlai"
+        style={{ display: 'none' }}
+        onChange={handleLoadFile}
+      />
     </div>
   );
 }

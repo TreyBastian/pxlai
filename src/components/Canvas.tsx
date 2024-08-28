@@ -6,11 +6,13 @@ interface CanvasProps {
   height: number;
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  fileId: string;
+  isActive: boolean;
 }
 
-export function Canvas({ width, height, zoom, onZoomChange }: CanvasProps) {
+export function Canvas({ width, height, zoom, onZoomChange, fileId, isActive }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { currentColor } = useColor();
+  const { getCurrentColor } = useColor();
   const [isDrawing, setIsDrawing] = useState(false);
 
   useEffect(() => {
@@ -28,19 +30,22 @@ export function Canvas({ width, height, zoom, onZoomChange }: CanvasProps) {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (ctx) {
+      const currentColor = getCurrentColor(fileId);
       ctx.fillStyle = currentColor || 'black';
       ctx.fillRect(x, y, 1, 1);
     }
-  }, [currentColor]);
+  }, [fileId, getCurrentColor]);
 
   const handleWheel = (e: React.WheelEvent) => {
+    if (!isActive) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -25 : 25;
-    const newZoom = Math.max(zoom + delta, 25); // Remove upper limit
+    const newZoom = Math.max(zoom + delta, 25);
     onZoomChange(newZoom);
   };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isActive) return;
     setIsDrawing(true);
     const { offsetX, offsetY } = e.nativeEvent;
     const x = Math.floor(offsetX / (zoom / 100));
@@ -53,7 +58,7 @@ export function Canvas({ width, height, zoom, onZoomChange }: CanvasProps) {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !isActive) return;
     const { offsetX, offsetY } = e.nativeEvent;
     const x = Math.floor(offsetX / (zoom / 100));
     const y = Math.floor(offsetY / (zoom / 100));
@@ -84,6 +89,7 @@ export function Canvas({ width, height, zoom, onZoomChange }: CanvasProps) {
         onMouseUp={stopDrawing}
         onMouseOut={stopDrawing}
         onMouseMove={handleMouseMove}
+        data-file-id={fileId} // Add this line
       />
     </div>
   );
