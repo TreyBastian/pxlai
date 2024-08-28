@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { Layer } from '../types';
 
 interface Color {
   id: string;
@@ -14,6 +15,9 @@ interface FileColorState {
   palette: Color[];
   sortOrder: SortOrder;
   selectedColorId: string | null;
+  layers: Layer[];
+  activeLayerId: string | null;
+  selectedLayerIds: string[];
 }
 
 interface ColorContextType {
@@ -37,11 +41,46 @@ interface ColorContextType {
     height: number;
     canvasData: string;
   }>;
+  addLayer: (fileId: string) => void;
+  removeLayer: (fileId: string, layerId: string) => void;
+  toggleLayerVisibility: (fileId: string, layerId: string) => void;
+  setActiveLayer: (fileId: string, layerId: string) => void;
+  reorderLayers: (fileId: string, sourceIndex: number, targetIndex: number) => void;
+  initializeFile: (fileId: string, width: number, height: number, isTransparent: boolean) => void;
+  updateLayerData: (fileId: string, layerId: string, canvasData: string) => void;
+  selectLayer: (fileId: string, layerId: string, multiSelect: boolean) => void;
+  getSelectedLayers: (fileId: string) => string[];
+  updateLayerName: (fileId: string, layerId: string, newName: string) => void;
 }
 
 const ColorContext = createContext<ColorContextType | undefined>(undefined);
 
-const CURRENT_FILE_VERSION = "0.1";
+const CURRENT_FILE_VERSION = "0.2";
+
+const INITIAL_PALETTE = [
+  { id: uuidv4(), value: 'rgba(0, 0, 0, 1)', name: 'Black' },
+  { id: uuidv4(), value: 'rgba(255, 255, 255, 1)', name: 'White' },
+];
+
+const createWhiteCanvas = (width: number, height: number): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, width, height);
+  }
+  return canvas.toDataURL();
+};
+
+const createTransparentCanvas = (width: number, height: number): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  // We don't need to do anything else, as the canvas is transparent by default
+  return canvas.toDataURL();
+};
 
 export function ColorProvider({ children }: { children: React.ReactNode }) {
   const [fileColorStates, setFileColorStates] = useState<Record<string, FileColorState>>({});
@@ -56,7 +95,10 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
           currentColor: null,
           palette: [],
           sortOrder: 'default',
-          selectedColorId: null
+          selectedColorId: null,
+          layers: [],
+          activeLayerId: null,
+          selectedLayerIds: [],
         }
       }));
     }
@@ -420,7 +462,8 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
       palette: fileState.palette,
       sortOrder: fileState.sortOrder,
       selectedColorId: fileState.selectedColorId,
-      canvasData: canvas.toDataURL(),
+      layers: fileState.layers,
+      activeLayerId: fileState.activeLayerId,
     };
 
     const blob = new Blob([JSON.stringify(fileData)], { type: 'application/json' });
@@ -444,14 +487,32 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
       fileData.version = "0.1";
     }
 
-    // Here you can add version-specific loading logic if needed
+    let layers: Layer[];
+    let activeLayerId: string | null;
+
     switch (fileData.version) {
       case "0.1":
-        // Current version, load as is
+        layers = [{
+          id: uuidv4(),
+          name: "Layer 1",
+          isVisible: true,
+          canvasData: fileData.canvasData,
+        }];
+        activeLayerId = layers[0].id;
         break;
-      // Add cases for future versions here
+      case "0.2":
+        layers = fileData.layers;
+        activeLayerId = fileData.activeLayerId;
+        break;
       default:
         console.warn(`Unknown file version: ${fileData.version}. Attempting to load anyway.`);
+        layers = fileData.layers || [{
+          id: uuidv4(),
+          name: "Layer 1",
+          isVisible: true,
+          canvasData: fileData.canvasData,
+        }];
+        activeLayerId = fileData.activeLayerId || layers[0].id;
     }
 
     setFileColorStates(prev => ({
@@ -461,37 +522,250 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
         palette: fileData.palette,
         sortOrder: fileData.sortOrder,
         selectedColorId: fileData.selectedColorId,
+        layers: layers,
+        activeLayerId: activeLayerId,
+        selectedLayerIds: [],
       }
     }));
 
-    // Return the loaded data so it can be used to create a new file in PhotoshopLayout
     return {
       version: fileData.version,
       id: fileData.id,
       name: fileData.name,
       width: fileData.width,
       height: fileData.height,
-      canvasData: fileData.canvasData,
+      layers: layers,
+      activeLayerId: activeLayerId,
     };
   }, []);
 
+  const addLayer = useCallback((fileId: string) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      const newLayer: Layer = {
+        id: uuidv4(),
+        name: `Layer ${file.layers.length + 1}`,
+        isVisible: true,
+        canvasData: createTransparentCanvas(32, 32), // Use transparent canvas for new layers
+      };
+      console.log('Adding new layer:', newLayer);
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          layers: [newLayer, ...file.layers], // Add new layer to the beginning
+          activeLayerId: newLayer.id,
+          selectedLayerIds: [newLayer.id],
+        },
+      };
+    });
+  }, []);
+
+  const removeLayer = useCallback((fileId: string, layerId: string) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      const newLayers = file.layers.filter(layer => layer.id !== layerId);
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          layers: newLayers,
+          activeLayerId: newLayers.length > 0 ? newLayers[0].id : null,
+          selectedLayerIds: [],
+        },
+      };
+    });
+  }, []);
+
+  const toggleLayerVisibility = useCallback((fileId: string, layerId: string) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          layers: file.layers.map(layer =>
+            layer.id === layerId ? { ...layer, isVisible: !layer.isVisible } : layer
+          ),
+        },
+      };
+    });
+  }, []);
+
+  const setActiveLayer = useCallback((fileId: string, layerId: string) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          activeLayerId: layerId,
+          selectedLayerIds: [layerId],
+        },
+      };
+    });
+  }, []);
+
+  const reorderLayers = useCallback((fileId: string, sourceIndex: number, targetIndex: number) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      const newLayers = [...file.layers];
+      const [removed] = newLayers.splice(sourceIndex, 1);
+      newLayers.splice(targetIndex, 0, removed);
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          layers: newLayers,
+        },
+      };
+    });
+  }, []);
+
+  const initializeFile = useCallback((fileId: string, width: number, height: number, isTransparent: boolean) => {
+    console.log(`Initializing file: ${fileId}, width: ${width}, height: ${height}, isTransparent: ${isTransparent}`);
+    setFileColorStates(prev => {
+      if (prev[fileId]) return prev; // File already initialized
+      const initialLayer: Layer = {
+        id: uuidv4(),
+        name: 'Background',
+        isVisible: true,
+        canvasData: isTransparent ? createTransparentCanvas(width, height) : createWhiteCanvas(width, height),
+      };
+      console.log(`Initial layer created: ${initialLayer.id}, isTransparent: ${isTransparent}`);
+      return {
+        ...prev,
+        [fileId]: {
+          currentColor: 'rgba(0, 0, 0, 1)', // Set initial color to black
+          palette: INITIAL_PALETTE,
+          sortOrder: 'default',
+          selectedColorId: INITIAL_PALETTE[0].id, // Select black
+          layers: [initialLayer],
+          activeLayerId: initialLayer.id,
+          selectedLayerIds: [initialLayer.id],
+        },
+      };
+    });
+  }, []);
+
+  const updateLayerData = useCallback((fileId: string, layerId: string, canvasData: string) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          layers: file.layers.map(layer =>
+            layer.id === layerId ? { ...layer, canvasData } : layer
+          ),
+        },
+      };
+    });
+  }, []);
+
+  const selectLayer = useCallback((fileId: string, layerId: string, multiSelect: boolean) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      let newSelectedLayerIds: string[];
+      if (multiSelect) {
+        newSelectedLayerIds = file.selectedLayerIds.includes(layerId)
+          ? file.selectedLayerIds.filter(id => id !== layerId)
+          : [...file.selectedLayerIds, layerId];
+      } else {
+        newSelectedLayerIds = [layerId];
+      }
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          selectedLayerIds: newSelectedLayerIds,
+          activeLayerId: newSelectedLayerIds[0] || null,
+        },
+      };
+    });
+  }, []);
+
+  const getSelectedLayers = useCallback((fileId: string) => {
+    return fileColorStates[fileId]?.selectedLayerIds || [];
+  }, [fileColorStates]);
+
+  const updateLayerName = useCallback((fileId: string, layerId: string, newName: string) => {
+    setFileColorStates(prev => {
+      const file = prev[fileId];
+      if (!file) return prev;
+      return {
+        ...prev,
+        [fileId]: {
+          ...file,
+          layers: file.layers.map(layer =>
+            layer.id === layerId ? { ...layer, name: newName } : layer
+          ),
+        },
+      };
+    });
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    getFileColorState,
+    setCurrentColor,
+    addToPalette,
+    deletePaletteItem,
+    reorderPalette,
+    loadPalette,
+    saveASEPalette,
+    saveGPLPalette,
+    toggleSortOrder,
+    updatePaletteColor,
+    setSelectedColorId,
+    getCurrentColor,
+    saveFile,
+    loadFile,
+    addLayer,
+    removeLayer,
+    toggleLayerVisibility,
+    setActiveLayer,
+    reorderLayers,
+    initializeFile,
+    updateLayerData,
+    selectLayer,
+    getSelectedLayers,
+    updateLayerName,
+  }), [
+    getFileColorState,
+    setCurrentColor,
+    addToPalette,
+    deletePaletteItem,
+    reorderPalette,
+    loadPalette,
+    saveASEPalette,
+    saveGPLPalette,
+    toggleSortOrder,
+    updatePaletteColor,
+    setSelectedColorId,
+    getCurrentColor,
+    saveFile,
+    loadFile,
+    addLayer,
+    removeLayer,
+    toggleLayerVisibility,
+    setActiveLayer,
+    reorderLayers,
+    initializeFile,
+    updateLayerData,
+    selectLayer,
+    getSelectedLayers,
+    updateLayerName,
+  ]);
+
   return (
-    <ColorContext.Provider value={{
-      getFileColorState,
-      setCurrentColor,
-      addToPalette,
-      deletePaletteItem,
-      reorderPalette,
-      loadPalette,
-      saveASEPalette,
-      saveGPLPalette,
-      toggleSortOrder,
-      updatePaletteColor,
-      setSelectedColorId,
-      getCurrentColor,
-      saveFile,
-      loadFile,
-    }}>
+    <ColorContext.Provider value={contextValue}>
       {children}
     </ColorContext.Provider>
   );

@@ -14,8 +14,7 @@ interface BaseWidgetProps {
   isLocked: boolean;
   initialSize?: { width: number; height: number };
   isActive?: boolean;
-  isDraggableOnContent?: boolean;
-  onActivate?: () => void;  // Add this prop
+  onActivate?: () => void;
   zIndex: number;
 }
 
@@ -29,8 +28,7 @@ export function BaseWidget({
   isLocked,
   initialSize,
   isActive = true,
-  isDraggableOnContent = true,
-  onActivate,  // Add this prop
+  onActivate,
   zIndex
 }: BaseWidgetProps) {
   const [isMinimized, setIsMinimized] = useState(false);
@@ -60,7 +58,7 @@ export function BaseWidget({
           height: parseInt(ref.style.height),
         };
         setSize(newSize);
-        onActivate();
+        onActivate?.();
       }}
       disableDragging={isLocked}
       enableResizing={!isLocked}
@@ -69,13 +67,13 @@ export function BaseWidget({
       minWidth={200}
       minHeight={100}
       style={{ zIndex: isActive ? zIndex + 1 : zIndex }}
-      dragHandleClassName={isDraggableOnContent ? undefined : "drag-handle"}
+      dragHandleClassName="drag-handle"
     >
       <Card className={`w-full h-full flex flex-col overflow-hidden ${isActive ? 'ring-2 ring-primary' : ''}`}>
         <CardHeader 
           ref={headerRef} 
           className={`flex-shrink-0 flex flex-row items-center justify-between py-1 px-2 ${isLocked ? '' : 'cursor-move'} drag-handle`}
-          onClick={onActivate}  // Add this line
+          onClick={onActivate}
         >
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
           <div className="flex space-x-1">

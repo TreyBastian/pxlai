@@ -9,6 +9,9 @@ import { CanvasWidget } from './CanvasWidget';
 import { File } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { useColor } from '../contexts/ColorContext';
+import { LayersWidget } from './LayersWidget';
+import Canvas from './Canvas';
+import { NewFileDialog } from './NewFileDialog';
 
 interface PhotoshopLayoutProps {}
 
@@ -19,13 +22,14 @@ interface WidgetData {
   position: { x: number; y: number };
 }
 
-export function PhotoshopLayout({}: PhotoshopLayoutProps) {
+export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
   const { theme } = useTheme();
-  const { saveFile, loadFile } = useColor();
+  const { saveFile, loadFile, initializeFile } = useColor();
   const [widgets, setWidgets] = useState<WidgetData[]>([
     { id: 'tools', component: ToolWidget, isVisible: true, position: { x: 10, y: 10 } },
     { id: 'colorPalette', component: ColorPalette, isVisible: true, position: { x: 10, y: 420 } },
     { id: 'colorPicker', component: ColorPicker, isVisible: true, position: { x: 10, y: 630 } },
+    { id: 'layers', component: LayersWidget, isVisible: true, position: { x: 220, y: 10 } },
   ]);
   const [isWindowsLocked, setIsWindowsLocked] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -53,16 +57,20 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
     widgets.map(widget => [widget.id, widget.isVisible])
   );
 
-  const handleCreateNewFile = (width: number, height: number, name: string) => {
+  const handleCreateNewFile = (width: number, height: number, name: string, isTransparent: boolean) => {
+    console.log(`Creating new file: width=${width}, height=${height}, name=${name}, isTransparent=${isTransparent}`);
     const newFile: File = {
       id: uuidv4(),
       name,
       width,
       height,
       position: { x: 300, y: 50 },
+      layers: [],
+      activeLayerId: null,
     };
     setFiles([...files, newFile]);
     setActiveFileId(newFile.id);
+    initializeFile(newFile.id, width, height, isTransparent);
   };
 
   const handleSwitchFile = (fileId: string) => {
@@ -104,6 +112,8 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
           width: loadedData.width,
           height: loadedData.height,
           position: { x: 300, y: 50 },
+          layers: loadedData.layers,
+          activeLayerId: loadedData.activeLayerId,
         };
         setFiles(prevFiles => [...prevFiles, newFile]);
         setActiveFileId(newFile.id);
@@ -181,7 +191,7 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
               onActivate={() => handleActivateWidget(id)}
               zIndex={1000 + widgets.indexOf({ id, component: Widget, isVisible, position })}
             >
-              {id === 'colorPalette' || id === 'colorPicker' ? (
+              {id === 'colorPalette' || id === 'colorPicker' || id === 'layers' ? (
                 <Widget fileId={activeFileId || null} />
               ) : (
                 <Widget />
@@ -190,6 +200,11 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
           )
         ))}
       </div>
+      <NewFileDialog
+        isOpen={isNewFileDialogOpen}
+        onClose={() => setIsNewFileDialogOpen(false)}
+        onCreateNewFile={handleCreateNewFile}
+      />
       <input
         ref={fileInputRef}
         type="file"

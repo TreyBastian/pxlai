@@ -18,7 +18,7 @@ import { NewFileDialog } from './NewFileDialog';
 import { File } from '../types';
 
 interface MenuBarProps {
-  onCreateNewFile: (width: number, height: number, name: string) => void;
+  onCreateNewFile: (width: number, height: number, name: string, isTransparent: boolean) => void;
   toggleWidget: (id: string) => void;
   isWindowsLocked: boolean;
   setIsWindowsLocked: (value: boolean) => void;
@@ -45,8 +45,8 @@ export function MenuBar({
   const { theme, setTheme } = useTheme();
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
 
-  const handleCreateNewFile = (width: number, height: number, name: string) => {
-    onCreateNewFile(width, height, name);
+  const handleCreateNewFile = (width: number, height: number, name: string, isTransparent: boolean) => {
+    onCreateNewFile(width, height, name, isTransparent);
     setIsNewFileDialogOpen(false);
   };
 
