@@ -8,7 +8,6 @@ import { BaseWidget } from './BaseWidget';
 import { CanvasWidget } from './CanvasWidget';
 import { File } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { NewFileDialog } from './NewFileDialog';
 
 interface PhotoshopLayoutProps {}
 
@@ -61,7 +60,6 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
     };
     setFiles([...files, newFile]);
     setActiveFileId(newFile.id);
-    setIsNewFileDialogOpen(false);
   };
 
   const handleSwitchFile = (fileId: string) => {
@@ -86,7 +84,7 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
   return (
     <div className="h-screen flex flex-col">
       <MenuBar 
-        onCreateNewFile={() => setIsNewFileDialogOpen(true)}
+        onCreateNewFile={handleCreateNewFile}
         toggleWidget={toggleWidget}
         isWindowsLocked={isWindowsLocked}
         setIsWindowsLocked={setIsWindowsLocked}
@@ -130,11 +128,6 @@ export function PhotoshopLayout({}: PhotoshopLayoutProps) {
           )
         ))}
       </div>
-      <NewFileDialog
-        isOpen={isNewFileDialogOpen}
-        onClose={() => setIsNewFileDialogOpen(false)}
-        onCreateNewFile={handleCreateNewFile}
-      />
     </div>
   );
 }

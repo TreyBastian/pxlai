@@ -97,30 +97,14 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
   }, [palette, sortOrder, originalOrder, getLightness]);
 
   const loadPalette = async (file: File) => {
-    try {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (extension === 'ase') {
       const buffer = await file.arrayBuffer();
-      const view = new DataView(buffer);
-
-      console.log('File size:', buffer.byteLength, 'bytes');
-
-      // Check file signature
-      if (view.getUint32(0, false) === 0x41534546) { // "ASEF" in ASCII
-        console.log('ASE file detected');
-        console.log('Version:', view.getUint32(4, false));
-        console.log('Number of blocks:', view.getUint32(8, false));
-        await loadASEPalette(buffer);
-      } else {
-        console.log('Attempting to load as GPL file');
-        await loadGPLPalette(file);
-      }
-    } catch (error) {
-      console.error('Error loading palette:', error);
-      // If an error occurs during parsing, we'll keep any colors that were successfully loaded
-      if (palette.length === 0) {
-        throw error;
-      } else {
-        console.warn('Partial palette loaded due to parsing error');
-      }
+      await loadASEPalette(buffer);
+    } else if (extension === 'gpl') {
+      await loadGPLPalette(file);
+    } else {
+      throw new Error('Unsupported file format');
     }
   };
 
@@ -242,26 +226,34 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     const lines = text.split(/\r\n|\n|\r/);
     const newPalette: Color[] = [];
 
-    if (lines[0] !== 'GIMP Palette') {
+    if (lines[0].trim() !== 'GIMP Palette') {
       throw new Error('Invalid GPL file format');
     }
 
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line && !line.startsWith('#')) {
-        const [r, g, b, a, ...nameParts] = line.split(/\s+/);
-        const name = nameParts.join(' ');
-        if (r && g && b) {
-          newPalette.push({
-            id: Date.now().toString() + i,
-            value: `rgba(${r}, ${g}, ${b}, ${a || 1})`,
-            name: name || `Color ${i}`
-          });
+        const parts = line.split(/\s+/);
+        if (parts.length >= 3) {
+          const [r, g, b] = parts.slice(0, 3).map(Number);
+          const name = parts.slice(3).join(' ') || `Color ${newPalette.length + 1}`;
+          if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+            newPalette.push({
+              id: uuidv4(),
+              value: `rgba(${r}, ${g}, ${b}, 1)`,
+              name: name
+            });
+          }
         }
       }
     }
 
-    setPalette(newPalette);
+    if (newPalette.length > 0) {
+      setPalette(newPalette);
+      setOriginalOrder(newPalette.map(c => c.id));
+    } else {
+      throw new Error('No valid colors found in the GPL file');
+    }
   };
 
   const saveASEPalette = () => {

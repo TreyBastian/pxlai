@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 
 interface DialogPortalProps {
   children: React.ReactNode;
-  isOpen: boolean;
+  isOpen: boolean;  // Add this prop
 }
 
 export function DialogPortal({ children, isOpen }: DialogPortalProps) {
@@ -14,17 +14,12 @@ export function DialogPortal({ children, isOpen }: DialogPortalProps) {
     return () => setMounted(false);
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted || !isOpen) return null;  // Only render when mounted and open
 
   return ReactDOM.createPortal(
-    isOpen ? (
-      <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 10000 }}>
-        <div className="fixed inset-0 bg-black bg-opacity-50" />
-        <div className="relative z-10">
-          {children}
-        </div>
-      </div>
-    ) : null,
+    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 99999 }}>
+      {children}
+    </div>,
     document.body
   );
 }

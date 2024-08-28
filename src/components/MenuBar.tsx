@@ -18,7 +18,7 @@ import { NewFileDialog } from './NewFileDialog';
 import { File } from '../types';
 
 interface MenuBarProps {
-  onCreateNewFile: (width: number, height: number) => void;
+  onCreateNewFile: (width: number, height: number, name: string) => void;
   toggleWidget: (id: string) => void;
   isWindowsLocked: boolean;
   setIsWindowsLocked: (value: boolean) => void;
@@ -41,19 +41,30 @@ export function MenuBar({
   const { theme, setTheme } = useTheme();
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
 
+  const handleCreateNewFile = (width: number, height: number, name: string) => {
+    onCreateNewFile(width, height, name);
+    setIsNewFileDialogOpen(false);
+  };
+
+  // Custom styles for MenubarContent and MenubarSubContent
+  const dropdownStyles = {
+    zIndex: 100000, // Very high z-index to ensure it's above other elements
+    position: 'relative' as const, // TypeScript requires this type assertion
+  };
+
   return (
     <>
-      <Menubar>
+      <Menubar className="relative z-50"> {/* Ensure the Menubar itself has a high z-index */}
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
-          <MenubarContent>
+          <MenubarContent style={dropdownStyles}>
             <MenubarItem onSelect={() => setIsNewFileDialogOpen(true)}>New</MenubarItem>
             <MenubarItem>Open</MenubarItem>
             <MenubarItem>Save</MenubarItem>
             <MenubarSeparator />
             <MenubarSub>
               <MenubarSubTrigger>Switch to</MenubarSubTrigger>
-              <MenubarSubContent>
+              <MenubarSubContent style={dropdownStyles}>
                 {files.map((file) => (
                   <MenubarItem 
                     key={file.id} 
@@ -69,7 +80,7 @@ export function MenuBar({
         </MenubarMenu>
         <MenubarMenu>
           <MenubarTrigger>Edit</MenubarTrigger>
-          <MenubarContent>
+          <MenubarContent style={dropdownStyles}>
             <MenubarItem>Undo</MenubarItem>
             <MenubarItem>Redo</MenubarItem>
             <MenubarItem>Cut</MenubarItem>
@@ -79,7 +90,7 @@ export function MenuBar({
         </MenubarMenu>
         <MenubarMenu>
           <MenubarTrigger>View</MenubarTrigger>
-          <MenubarContent>
+          <MenubarContent style={dropdownStyles}>
             <MenubarCheckboxItem 
               checked={widgetVisibility['tools']}
               onCheckedChange={() => toggleWidget('tools')}
@@ -108,7 +119,7 @@ export function MenuBar({
             <MenubarSeparator />
             <MenubarSub>
               <MenubarSubTrigger>Appearance</MenubarSubTrigger>
-              <MenubarSubContent>
+              <MenubarSubContent style={dropdownStyles}>
                 <MenubarRadioGroup value={theme} onValueChange={(value) => setTheme(value as any)}>
                   <MenubarRadioItem value="light">Light</MenubarRadioItem>
                   <MenubarRadioItem value="dark">Dark</MenubarRadioItem>
@@ -120,7 +131,7 @@ export function MenuBar({
         </MenubarMenu>
         <MenubarMenu>
           <MenubarTrigger>Help</MenubarTrigger>
-          <MenubarContent>
+          <MenubarContent style={dropdownStyles}>
             <MenubarItem>About</MenubarItem>
             <MenubarItem>Documentation</MenubarItem>
           </MenubarContent>
@@ -129,7 +140,7 @@ export function MenuBar({
       <NewFileDialog
         isOpen={isNewFileDialogOpen}
         onClose={() => setIsNewFileDialogOpen(false)}
-        onCreateNewFile={onCreateNewFile}
+        onCreateNewFile={handleCreateNewFile}
       />
     </>
   );

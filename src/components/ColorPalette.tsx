@@ -2,15 +2,13 @@ import React, { useState } from 'react';
 import { useColor } from '../contexts/ColorContext';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { SortAsc, ArrowDownAZ, ArrowUpAZ, Plus } from "lucide-react";
+import { Menu, Plus, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { DownloadIcon, UploadIcon, FileIcon } from '@radix-ui/react-icons';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -37,37 +35,34 @@ function SortableItem({ id, value, isSelected, onSelect, onDelete }: SortableIte
     transition,
   };
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSelect();
-  };
-
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative group">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            className={`w-8 h-8 rounded-full focus:outline-none ${
-              isSelected ? 'ring-2 ring-primary' : ''
-            }`}
-            style={{ backgroundColor: value }}
-            onClick={handleClick}
-          />
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Color: {value}</p>
-        </TooltipContent>
-      </Tooltip>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative group w-8 h-8">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              className={`w-full h-full rounded-full focus:outline-none ${
+                isSelected ? 'ring-2 ring-primary' : ''
+              }`}
+              style={{ backgroundColor: value }}
+              onClick={onSelect}
+            />
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Color: {value}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <Button
         variant="destructive"
         size="icon"
-        className="absolute -top-1 -right-1 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        className="absolute -top-1 -right-1 w-4 h-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-0"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
         }}
       >
-        <span className="text-[10px]">×</span>
+        <X className="h-2 w-2" />
       </Button>
     </div>
   );
@@ -86,11 +81,11 @@ export function ColorPalette() {
     sortOrder, 
     toggleSortOrder, 
     addToPalette,
-    setSelectedColorId  // Add this
+    setSelectedColorId
   } = useColor();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-  const DEFAULT_NEW_COLOR = 'rgba(200, 200, 200, 1)'; // Default grayish color with full opacity
+  const DEFAULT_NEW_COLOR = 'rgba(200, 200, 200, 1)';
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -121,20 +116,19 @@ export function ColorPalette() {
   const handleAddNewColor = () => {
     const newColor = currentColor || DEFAULT_NEW_COLOR;
     addToPalette(newColor);
-    setSelectedIndex(sortedPalette.length); // Select the newly added color
+    setSelectedIndex(sortedPalette.length);
     setCurrentColor(newColor);
   };
 
   const handleSelectColor = (index: number) => {
     if (selectedIndex === index) {
-      // Deselect if already selected
       setSelectedIndex(null);
       setCurrentColor(null);
-      setSelectedColorId(null);  // Add this
+      setSelectedColorId(null);
     } else {
       setSelectedIndex(index);
       setCurrentColor(sortedPalette[index].value);
-      setSelectedColorId(sortedPalette[index].id);  // Add this
+      setSelectedColorId(sortedPalette[index].id);
     }
   };
 
@@ -149,141 +143,66 @@ export function ColorPalette() {
     }
   };
 
-  const downloadPalette = (format: 'ase' | 'gpl') => {
-    const blob = format === 'ase' ? saveASEPalette() : saveGPLPalette();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `palette.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const getSortIcon = () => {
-    switch (sortOrder) {
-      case 'default':
-        return <SortAsc className="h-4 w-4" />;
-      case 'lightness-asc':
-        return <ArrowUpAZ className="h-4 w-4" />;
-      case 'lightness-desc':
-        return <ArrowDownAZ className="h-4 w-4" />;
-    }
-  };
-
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-4 w-full flex justify-between items-center p-2 bg-secondary rounded-md">
-        <input
-          type="file"
-          accept=".gpl,.ase"
-          onChange={handleFileUpload}
-          style={{ display: 'none' }}
-          id="palette-file-input"
-        />
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => document.getElementById('palette-file-input')?.click()}
-              >
-                <UploadIcon className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Upload Palette</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
+    <div className="p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">Color Palette</h2>
         <DropdownMenu>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <DownloadIcon className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Download Palette</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => downloadPalette('ase')}>
-              <FileIcon className="mr-2 h-4 w-4" />
-              <span>Download ASE</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => downloadPalette('gpl')}>
-              <FileIcon className="mr-2 h-4 w-4" />
-              <span>Download GPL</span>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+              <Menu className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-[10000]">
+            <DropdownMenuItem onSelect={toggleSortOrder}>Toggle Sort Order</DropdownMenuItem>
+            <DropdownMenuItem onSelect={saveASEPalette}>Save ASE</DropdownMenuItem>
+            <DropdownMenuItem onSelect={saveGPLPalette}>Save GPL</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => document.getElementById('file-upload')?.click()}>
+              Load Palette
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={toggleSortOrder}>
-                {getSortIcon()}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Toggle Sort Order</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <input
+          id="file-upload"
+          type="file"
+          accept=".ase,.gpl"
+          onChange={handleFileUpload}
+          style={{ display: 'none' }}
+        />
       </div>
-      <ScrollArea className="flex-grow">
-        <DndContext 
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={sortedPalette.map(color => color.id)}>
-            <div className="flex flex-wrap gap-4 p-4">
-              <TooltipProvider>
-                {sortedPalette.map((color, index) => (
-                  <SortableItem
-                    key={color.id}
-                    id={color.id}
-                    value={color.value}
-                    isSelected={index === selectedIndex}
-                    onSelect={() => handleSelectColor(index)}
-                    onDelete={() => {
-                      deletePaletteItem(color.id);
-                      if (selectedIndex === index) {
-                        setSelectedIndex(null);
-                        setCurrentColor(null);
-                      } else if (selectedIndex && selectedIndex > index) {
-                        setSelectedIndex(selectedIndex - 1);
-                      }
-                    }}
-                  />
-                ))}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      className="w-8 h-8 rounded-full focus:outline-none bg-secondary flex items-center justify-center"
-                      onClick={handleAddNewColor}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Add New Color</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </SortableContext>
-        </DndContext>
-      </ScrollArea>
+      <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
+        <SortableContext items={sortedPalette.map(item => item.id)}>
+          <div className="grid grid-cols-4 gap-4">
+            {sortedPalette.map((color, index) => (
+              <SortableItem
+                key={color.id}
+                id={color.id}
+                value={color.value}
+                isSelected={selectedIndex === index}
+                onSelect={() => handleSelectColor(index)}
+                onDelete={() => deletePaletteItem(color.id)}
+              />
+            ))}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="w-8 h-8 rounded-full"
+                    onClick={handleAddNewColor}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Add New Color</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
