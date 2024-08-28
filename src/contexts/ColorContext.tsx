@@ -55,7 +55,7 @@ interface ColorContextType {
 
 const ColorContext = createContext<ColorContextType | undefined>(undefined);
 
-const CURRENT_FILE_VERSION = "0.2";
+const CURRENT_FILE_VERSION = "0.3";
 
 const INITIAL_PALETTE = [
   { id: uuidv4(), value: 'rgba(0, 0, 0, 1)', name: 'Black' },
@@ -449,9 +449,6 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     const fileState = fileColorStates[fileId];
     if (!fileState) return;
 
-    const canvas = document.querySelector(`canvas[data-file-id="${fileId}"]`) as HTMLCanvasElement;
-    if (!canvas) return;
-
     const fileData = {
       version: CURRENT_FILE_VERSION,
       id: fileId,
@@ -501,6 +498,7 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
         activeLayerId = layers[0].id;
         break;
       case "0.2":
+      case "0.3":
         layers = fileData.layers;
         activeLayerId = fileData.activeLayerId;
         break;
@@ -529,7 +527,6 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     }));
 
     return {
-      version: fileData.version,
       id: fileData.id,
       name: fileData.name,
       width: fileData.width,
