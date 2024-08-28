@@ -51,6 +51,7 @@ interface ColorContextType {
   selectLayer: (fileId: string, layerId: string, multiSelect: boolean) => void;
   getSelectedLayers: (fileId: string) => string[];
   updateLayerName: (fileId: string, layerId: string, newName: string) => void;
+  exportAsPNG: (fileId: string, fileName: string) => void;
 }
 
 const ColorContext = createContext<ColorContextType | undefined>(undefined);
@@ -709,6 +710,56 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const exportAsPNG = useCallback((fileId: string, fileName: string) => {
+    const fileState = fileColorStates[fileId];
+    if (!fileState) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Assuming the first layer's dimensions are the canvas dimensions
+    const firstLayer = fileState.layers[0];
+    if (!firstLayer) return;
+
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      // Draw checkerboard pattern for transparency
+      drawCheckerboard(ctx, canvas.width, canvas.height);
+
+      // Draw layers in reverse order
+      [...fileState.layers].reverse().forEach((layer) => {
+        if (layer.isVisible) {
+          const layerImg = new Image();
+          layerImg.onload = () => {
+            ctx.drawImage(layerImg, 0, 0);
+            
+            // After drawing the last (top) layer, export the image
+            if (layer.id === fileState.layers[0].id) {
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `${fileName}.png`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                }
+              }, 'image/png');
+            }
+          };
+          layerImg.src = layer.canvasData;
+        }
+      });
+    };
+    img.src = firstLayer.canvasData;
+  }, [fileColorStates]);
+
   const contextValue = useMemo(() => ({
     getFileColorState,
     setCurrentColor,
@@ -734,6 +785,7 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     selectLayer,
     getSelectedLayers,
     updateLayerName,
+    exportAsPNG,
   }), [
     getFileColorState,
     setCurrentColor,
@@ -759,6 +811,7 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
     selectLayer,
     getSelectedLayers,
     updateLayerName,
+    exportAsPNG,
   ]);
 
   return (
@@ -766,6 +819,22 @@ export function ColorProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ColorContext.Provider>
   );
+}
+
+// Helper function to draw checkerboard pattern
+function drawCheckerboard(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const tileSize = 8;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#e0e0e0';
+
+  for (let y = 0; y < height; y += tileSize) {
+    for (let x = 0; x < width; x += tileSize) {
+      if ((x / tileSize + y / tileSize) % 2 === 0) {
+        ctx.fillRect(x, y, tileSize, tileSize);
+      }
+    }
+  }
 }
 
 export const useColor = () => {

@@ -24,7 +24,7 @@ interface WidgetData {
 
 export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
   const { theme } = useTheme();
-  const { saveFile, loadFile, initializeFile } = useColor();
+  const { saveFile, loadFile, initializeFile, exportAsPNG } = useColor();
   const [widgets, setWidgets] = useState<WidgetData[]>([
     { id: 'tools', component: ToolWidget, isVisible: true, position: { x: 10, y: 10 } },
     { id: 'colorPalette', component: ColorPalette, isVisible: true, position: { x: 10, y: 420 } },
@@ -144,6 +144,13 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
     }
   };
 
+  const handleExportAsPNG = (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (file) {
+      exportAsPNG(fileId, file.name);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col">
       <MenuBar 
@@ -157,6 +164,7 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
         onSwitchFile={handleSwitchFile}
         onSaveFile={handleSaveFile}
         onLoadFile={() => fileInputRef.current?.click()}
+        onExportAsPNG={handleExportAsPNG}
       />
       <div 
         className="flex-grow relative"
