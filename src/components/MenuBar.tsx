@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { useFile } from '../contexts/FileContext';
+import { useWidget } from '../contexts/WidgetContext';
+import { useColor } from '../contexts/ColorContext';
 import {
   Menubar,
   MenubarMenu,
@@ -10,60 +13,40 @@ import {
   MenubarSub,
   MenubarSubContent,
   MenubarSubTrigger,
-  MenubarRadioGroup,
-  MenubarRadioItem,
 } from "@/components/ui/menubar";
-import { File } from '../types';
 
 interface MenuBarProps {
   onCreateNewFile: () => void;
-  files: File[];
-  activeFileId: string | null;
-  onSwitchFile: (fileId: string) => void;
-  onSaveFile: (fileId: string) => void;
-  onLoadFile: () => void;
-  onExportAsPNG: (fileId: string) => void;
-  isWindowsLocked: boolean;
-  setIsWindowsLocked: (locked: boolean) => void;
-  toggleWidget: (widgetId: string) => void;
-  widgetVisibility: {
-    tools: boolean;
-    colorPalette: boolean;
-    colorPicker: boolean;
-    layers: boolean;
-  };
-  onLoadPalette: () => void;
-  onSaveASEPalette: (fileId: string) => void;
-  onSaveGPLPalette: (fileId: string) => void;
 }
 
-export function MenuBar({
-  onCreateNewFile,
-  files,
-  activeFileId,
-  onSwitchFile,
-  onSaveFile,
-  onLoadFile,
-  onExportAsPNG,
-  isWindowsLocked,
-  setIsWindowsLocked,
-  toggleWidget,
-  widgetVisibility,
-  onLoadPalette,
-  onSaveASEPalette,
-  onSaveGPLPalette,
-}: MenuBarProps) {
+export function MenuBar({ onCreateNewFile }: MenuBarProps) {
+  const { files, activeFileId, saveFile, exportAsPNG, activateFile, loadFile } = useFile();
+  const { widgetVisibility, toggleWidget, isWindowsLocked, setIsWindowsLocked } = useWidget();
+  const { loadPalette, saveASEPalette, saveGPLPalette } = useColor();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLoadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        await loadFile(file);
+      } catch (error) {
+        console.error('Failed to load file:', error);
+      }
+    }
+  };
+
   return (
     <Menubar>
       <MenubarMenu>
         <MenubarTrigger>File</MenubarTrigger>
         <MenubarContent>
           <MenubarItem onSelect={onCreateNewFile}>New</MenubarItem>
-          <MenubarItem onSelect={onLoadFile}>Open</MenubarItem>
-          <MenubarItem onSelect={() => activeFileId && onSaveFile(activeFileId)} disabled={!activeFileId}>
+          <MenubarItem onSelect={() => fileInputRef.current?.click()}>Open</MenubarItem>
+          <MenubarItem onSelect={() => activeFileId && saveFile(activeFileId)} disabled={!activeFileId}>
             Save
           </MenubarItem>
-          <MenubarItem onSelect={() => activeFileId && onExportAsPNG(activeFileId)} disabled={!activeFileId}>
+          <MenubarItem onSelect={() => activeFileId && exportAsPNG(activeFileId)} disabled={!activeFileId}>
             Export as PNG
           </MenubarItem>
           <MenubarSeparator />
@@ -73,7 +56,7 @@ export function MenuBar({
               {files.map((file) => (
                 <MenubarItem 
                   key={file.id}
-                  onSelect={() => onSwitchFile(file.id)}
+                  onSelect={() => activateFile(file.id)}
                 >
                   {file.name}
                 </MenubarItem>
@@ -85,30 +68,15 @@ export function MenuBar({
       <MenubarMenu>
         <MenubarTrigger>View</MenubarTrigger>
         <MenubarContent>
-          <MenubarCheckboxItem 
-            checked={widgetVisibility.tools}
-            onCheckedChange={() => toggleWidget('tools')}
-          >
-            Tools
-          </MenubarCheckboxItem>
-          <MenubarCheckboxItem 
-            checked={widgetVisibility.colorPalette}
-            onCheckedChange={() => toggleWidget('colorPalette')}
-          >
-            Color Palette
-          </MenubarCheckboxItem>
-          <MenubarCheckboxItem 
-            checked={widgetVisibility.colorPicker}
-            onCheckedChange={() => toggleWidget('colorPicker')}
-          >
-            Color Picker
-          </MenubarCheckboxItem>
-          <MenubarCheckboxItem 
-            checked={widgetVisibility.layers}
-            onCheckedChange={() => toggleWidget('layers')}
-          >
-            Layers
-          </MenubarCheckboxItem>
+          {Object.entries(widgetVisibility).map(([widgetId, isVisible]) => (
+            <MenubarCheckboxItem 
+              key={widgetId}
+              checked={isVisible}
+              onCheckedChange={() => toggleWidget(widgetId as keyof typeof widgetVisibility)}
+            >
+              {widgetId}
+            </MenubarCheckboxItem>
+          ))}
           <MenubarSeparator />
           <MenubarCheckboxItem
             checked={isWindowsLocked}
@@ -121,15 +89,24 @@ export function MenuBar({
       <MenubarMenu>
         <MenubarTrigger>Palette</MenubarTrigger>
         <MenubarContent>
-          <MenubarItem onSelect={onLoadPalette}>Import Palette</MenubarItem>
-          <MenubarItem onSelect={() => activeFileId && onSaveASEPalette(activeFileId)} disabled={!activeFileId}>
+          <MenubarItem onSelect={() => activeFileId && loadPalette(activeFileId)} disabled={!activeFileId}>
+            Import Palette
+          </MenubarItem>
+          <MenubarItem onSelect={() => activeFileId && saveASEPalette(activeFileId)} disabled={!activeFileId}>
             Export as ASE
           </MenubarItem>
-          <MenubarItem onSelect={() => activeFileId && onSaveGPLPalette(activeFileId)} disabled={!activeFileId}>
+          <MenubarItem onSelect={() => activeFileId && saveGPLPalette(activeFileId)} disabled={!activeFileId}>
             Export as GPL
           </MenubarItem>
         </MenubarContent>
       </MenubarMenu>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pxlai"
+        style={{ display: 'none' }}
+        onChange={handleLoadFile}
+      />
     </Menubar>
   );
 }

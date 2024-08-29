@@ -14,3 +14,27 @@ export interface File {
   layers: Layer[];
   activeLayerId: string | null;
 }
+
+// Add any additional types or interfaces that might be needed across the application
+
+export type SortOrder = 'default' | 'lightness-asc' | 'lightness-desc';
+
+export interface Color {
+  id: string;
+  value: string;
+  name?: string;
+}
+
+export interface FileColorState {
+  currentColor: string | null;
+  palette: Color[];
+  sortOrder: SortOrder;
+  selectedColorId: string | null;
+}
+
+export interface WidgetVisibility {
+  tools: boolean;
+  colorPalette: boolean;
+  colorPicker: boolean;
+  layers: boolean;
+}

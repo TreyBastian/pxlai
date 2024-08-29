@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useColor } from '../contexts/ColorContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
@@ -107,6 +107,8 @@ export function ColorPicker({ fileId }: ColorPickerProps) {
   const [rgba, setRgba] = useState({ r: 200, g: 200, b: 200, a: 1 });
   const [cmyka, setCmyka] = useState({ c: 0, m: 0, y: 0, k: 20, a: 1 });
 
+  const fileColorState = useMemo(() => fileId ? getFileColorState(fileId) : null, [fileId, getFileColorState]);
+
   const updateAllColors = useCallback((newRgba) => {
     const validRgba = {
       r: isNaN(newRgba.r) ? 0 : Math.min(255, Math.max(0, Math.round(newRgba.r))),
@@ -124,20 +126,16 @@ export function ColorPicker({ fileId }: ColorPickerProps) {
   }, []);
 
   useEffect(() => {
-    if (fileId) {
-      const fileColorState = getFileColorState(fileId);
-      const currentColor = fileColorState?.currentColor;
-      if (currentColor) {
-        const rgbaValues = currentColor.match(/\d+(\.\d+)?/g);
-        if (rgbaValues && rgbaValues.length === 4) {
-          const [r, g, b, a] = rgbaValues.map(Number);
-          updateAllColors({ r, g, b, a });
-        }
-      } else {
-        updateAllColors({ r: 200, g: 200, b: 200, a: 1 });
+    if (fileColorState?.currentColor) {
+      const rgbaValues = fileColorState.currentColor.match(/\d+(\.\d+)?/g);
+      if (rgbaValues && rgbaValues.length === 4) {
+        const [r, g, b, a] = rgbaValues.map(Number);
+        updateAllColors({ r, g, b, a });
       }
+    } else {
+      updateAllColors({ r: 200, g: 200, b: 200, a: 1 });
     }
-  }, [fileId, getFileColorState, updateAllColors]);
+  }, [fileColorState, updateAllColors]);
 
   const handleSliderChange = useCallback((model: ColorModel, component: string, value: number) => {
     if (!fileId) return;
@@ -165,24 +163,17 @@ export function ColorPicker({ fileId }: ColorPickerProps) {
         break;
     }
     
-    // Update all color models
     updateAllColors(newColor);
     
-    // Update currentColor in real-time
     const updatedColor = `rgba(${Math.round(newColor.r)}, ${Math.round(newColor.g)}, ${Math.round(newColor.b)}, ${newColor.a})`;
     setCurrentColor(fileId, updatedColor);
   }, [fileId, hsla, rgba, cmyka, updateAllColors, setCurrentColor]);
 
   useEffect(() => {
-    if (fileId) {
-      const fileColorState = getFileColorState(fileId);
-      const currentColor = fileColorState?.currentColor;
-      const selectedColorId = fileColorState?.selectedColorId;
-      if (currentColor && selectedColorId) {
-        updatePaletteColor(fileId, selectedColorId, currentColor);
-      }
+    if (fileId && fileColorState?.currentColor && fileColorState?.selectedColorId) {
+      updatePaletteColor(fileId, fileColorState.selectedColorId, fileColorState.currentColor);
     }
-  }, [fileId, getFileColorState, updatePaletteColor]);
+  }, [fileId, fileColorState, updatePaletteColor]);
 
   if (!fileId) {
     return <div>No file selected</div>;
@@ -219,40 +210,10 @@ export function ColorPicker({ fileId }: ColorPickerProps) {
           </div>
           <div className="overflow-y-auto">
             <TabsContent value="hsla" className="mt-0">
-              <ColorSlider 
-                label="Hue" 
-                value={hsla.h} 
-                min={0} 
-                max={359} 
-                onChange={(v) => handleSliderChange('hsla', 'h', v)} 
-                isHue={true}
-                hsla={hsla}
-              />
-              <ColorSlider 
-                label="Saturation" 
-                value={hsla.s} 
-                min={0} 
-                max={100} 
-                onChange={(v) => handleSliderChange('hsla', 's', v)} 
-                hsla={hsla}
-              />
-              <ColorSlider 
-                label="Lightness" 
-                value={hsla.l} 
-                min={0} 
-                max={100} 
-                onChange={(v) => handleSliderChange('hsla', 'l', v)} 
-                hsla={hsla}
-              />
-              <ColorSlider 
-                label="Alpha" 
-                value={hsla.a} 
-                min={0} 
-                max={1} 
-                onChange={(v) => handleSliderChange('hsla', 'a', v)} 
-                isAlpha 
-                hsla={hsla}
-              />
+              <ColorSlider label="Hue" value={hsla.h} min={0} max={359} onChange={(v) => handleSliderChange('hsla', 'h', v)} isHue={true} hsla={hsla} />
+              <ColorSlider label="Saturation" value={hsla.s} min={0} max={100} onChange={(v) => handleSliderChange('hsla', 's', v)} hsla={hsla} />
+              <ColorSlider label="Lightness" value={hsla.l} min={0} max={100} onChange={(v) => handleSliderChange('hsla', 'l', v)} hsla={hsla} />
+              <ColorSlider label="Alpha" value={hsla.a} min={0} max={1} onChange={(v) => handleSliderChange('hsla', 'a', v)} isAlpha hsla={hsla} />
             </TabsContent>
             <TabsContent value="rgba" className="mt-0">
               <ColorSlider label="Red" value={rgba.r} min={0} max={255} onChange={(v) => handleSliderChange('rgba', 'r', v)} hsla={hsla} />

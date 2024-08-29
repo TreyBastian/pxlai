@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useColor } from '../contexts/ColorContext';
+import { useLayer } from '../contexts/LayerContext';
 import { Layer } from '../types';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,24 +12,25 @@ interface LayersWidgetProps {
 
 export function LayersWidget({ fileId }: LayersWidgetProps) {
   const { 
-    getFileColorState, 
+    getLayers,
     addLayer, 
-    removeLayer, 
+    deleteLayer, 
     toggleLayerVisibility, 
     setActiveLayer, 
     reorderLayers,
-    selectLayer,
+    setSelectedLayerIds,
     getSelectedLayers,
-    updateLayerName
-  } = useColor();
+    renameLayer,
+    getActiveLayerId
+  } = useLayer();
+
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const fileState = getFileColorState(fileId);
-  const layers = fileState?.layers || [];
-  const selectedLayerIds = fileState ? getSelectedLayers(fileState.id) : [];
-  const activeLayerId = fileState?.activeLayerId;
+  const layers = fileId ? getLayers(fileId) : [];
+  const selectedLayerIds = fileId ? getSelectedLayers(fileId).map(layer => layer.id) : [];
+  const activeLayerId = fileId ? getActiveLayerId(fileId) : null;
 
   useEffect(() => {
     if (editingLayerId && inputRef.current) {
@@ -45,7 +46,7 @@ export function LayersWidget({ fileId }: LayersWidgetProps) {
 
   const handleRemoveLayer = (layerId: string) => {
     if (fileId) {
-      removeLayer(fileId, layerId);
+      deleteLayer(fileId, layerId);
     }
   };
 
@@ -56,7 +57,9 @@ export function LayersWidget({ fileId }: LayersWidgetProps) {
   };
 
   const handleLayerClick = useCallback((layerId: string) => {
-    setActiveLayer(fileId!, layerId);
+    if (fileId) {
+      setActiveLayer(fileId, layerId);
+    }
   }, [fileId, setActiveLayer]);
 
   const handleLayerNameClick = useCallback((layer: Layer) => {
@@ -69,20 +72,20 @@ export function LayersWidget({ fileId }: LayersWidgetProps) {
   }, []);
 
   const handleNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>, layerId: string) => {
-    if (e.key === 'Enter') {
-      updateLayerName(fileId!, layerId, editingName);
+    if (e.key === 'Enter' && fileId) {
+      renameLayer(fileId, layerId, editingName);
       setEditingLayerId(null);
     } else if (e.key === 'Escape') {
       setEditingLayerId(null);
     }
-  }, [fileId, updateLayerName, editingName]);
+  }, [fileId, renameLayer, editingName]);
 
   const handleNameBlur = useCallback(() => {
-    if (editingLayerId) {
-      updateLayerName(fileId!, editingLayerId, editingName);
+    if (editingLayerId && fileId) {
+      renameLayer(fileId, editingLayerId, editingName);
       setEditingLayerId(null);
     }
-  }, [fileId, editingLayerId, editingName, updateLayerName]);
+  }, [fileId, editingLayerId, editingName, renameLayer]);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     e.dataTransfer.setData('text/plain', index.toString());
@@ -100,7 +103,7 @@ export function LayersWidget({ fileId }: LayersWidgetProps) {
     }
   };
 
-  if (!fileId || !fileState) {
+  if (!fileId) {
     return <div className="p-4">No file selected</div>;
   }
 

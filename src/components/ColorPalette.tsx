@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useColor } from '../contexts/ColorContext';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -86,9 +86,9 @@ export function ColorPalette({ fileId }: ColorPaletteProps) {
     setSelectedColorId
   } = useColor();
 
-  const fileColorState = getFileColorState(fileId);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
+  const fileColorState = fileId ? getFileColorState(fileId) : null;
   const DEFAULT_NEW_COLOR = 'rgba(200, 200, 200, 1)';
 
   const sensors = useSensors(
@@ -102,10 +102,10 @@ export function ColorPalette({ fileId }: ColorPaletteProps) {
     })
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = useCallback((event: any) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
+    if (active.id !== over.id && fileId) {
       const oldIndex = fileColorState?.palette?.findIndex((item) => item.id === active.id);
       const newIndex = fileColorState?.palette?.findIndex((item) => item.id === over.id);
       reorderPalette(fileId, arrayMove(fileColorState?.palette || [], oldIndex, newIndex));
@@ -115,17 +115,17 @@ export function ColorPalette({ fileId }: ColorPaletteProps) {
         setSelectedIndex(oldIndex);
       }
     }
-  };
+  }, [fileId, fileColorState, reorderPalette, selectedIndex]);
 
-  const handleAddNewColor = () => {
+  const handleAddNewColor = useCallback(() => {
     if (!fileId) return;
     const newColor = fileColorState?.currentColor || DEFAULT_NEW_COLOR;
     addToPalette(fileId, newColor);
     setSelectedIndex(fileColorState?.palette?.length || 0);
     setCurrentColor(fileId, newColor);
-  };
+  }, [fileId, fileColorState, addToPalette, setCurrentColor]);
 
-  const handleSelectColor = (index: number) => {
+  const handleSelectColor = useCallback((index: number) => {
     if (!fileId) return;
     if (selectedIndex === index) {
       setSelectedIndex(null);
@@ -136,9 +136,9 @@ export function ColorPalette({ fileId }: ColorPaletteProps) {
       setCurrentColor(fileId, fileColorState?.palette?.[index]?.value || null);
       setSelectedColorId(fileId, fileColorState?.palette?.[index]?.id || null);
     }
-  };
+  }, [fileId, selectedIndex, setCurrentColor, setSelectedColorId, fileColorState]);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!fileId) return;
     const file = event.target.files?.[0];
     if (file) {
@@ -148,7 +148,7 @@ export function ColorPalette({ fileId }: ColorPaletteProps) {
         console.error('Failed to load palette:', error);
       }
     }
-  };
+  }, [fileId, loadPalette]);
 
   if (!fileId || !fileColorState) {
     return <div>No file selected</div>;

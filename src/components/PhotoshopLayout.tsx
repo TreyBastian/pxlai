@@ -1,13 +1,14 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { MenuBar } from './MenuBar';
 import { ColorPicker } from './ColorPicker';
 import { ColorPalette } from './ColorPalette';
 import { ToolWidget } from './ToolWidget';
 import { useTheme } from '../contexts/ThemeContext';
 import { CanvasWidget } from './CanvasWidget';
-import { File } from '../types';
-import { v4 as uuidv4 } from 'uuid';
 import { useColor } from '../contexts/ColorContext';
+import { useFile } from '../contexts/FileContext';
+import { useLayer } from '../contexts/LayerContext';
+import { useWidget } from '../contexts/WidgetContext';
 import { LayersWidget } from './LayersWidget';
 import { NewFileDialog } from './NewFileDialog';
 import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable";
@@ -16,42 +17,25 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter } 
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 
-interface PhotoshopLayoutProps {}
-
-export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
+export default function PhotoshopLayout() {
   const { theme } = useTheme();
-  const { saveFile, loadFile, initializeFile, exportAsPNG, unloadFile, loadPalette, saveASEPalette, saveGPLPalette } = useColor();
-  const [files, setFiles] = useState<File[]>([]);
-  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const { loadPalette, saveASEPalette, saveGPLPalette } = useColor();
+  const { files, activeFileId, createNewFile, closeFile, activateFile, reorderFiles, saveFile, loadFile, exportAsPNG } = useFile();
+  const { addLayer } = useLayer();
+  const { widgetVisibility, toggleWidget, leftPanelWidgets, rightPanelWidgets, centerPanelWidgets, updatePanelWidgets, isWindowsLocked, setIsWindowsLocked } = useWidget();
+
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const [isWindowsLocked, setIsWindowsLocked] = useState(true);
-  const [leftPanelWidgets, setLeftPanelWidgets] = useState(['tools', 'colorPalette', 'colorPicker']);
-  const [rightPanelWidgets, setRightPanelWidgets] = useState(['layers']);
-
-  const [widgetVisibility, setWidgetVisibility] = useState({
-    tools: true,
-    colorPalette: true,
-    colorPicker: true,
-    layers: true,
-  });
-
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  const toggleWidget = (id: string) => {
-    setWidgetVisibility(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const onDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
 
   const { setNodeRef: setLeftPanelRef } = useDroppable({ id: 'leftPanel' });
   const { setNodeRef: setRightPanelRef } = useDroppable({ id: 'rightPanel' });
   const { setNodeRef: setCenterPanelRef } = useDroppable({ id: 'centerPanel' });
 
-  const [centerPanelWidgets, setCenterPanelWidgets] = useState<string[]>(['canvasWidget']);
+  const onDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
 
   const onDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
@@ -96,82 +80,27 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
 
       const { newLeftPanelWidgets, newRightPanelWidgets, newCenterPanelWidgets } = getUpdatedPanels();
 
-      setLeftPanelWidgets(newLeftPanelWidgets);
-      setRightPanelWidgets(newRightPanelWidgets);
-      setCenterPanelWidgets(newCenterPanelWidgets);
+      updatePanelWidgets('left', newLeftPanelWidgets);
+      updatePanelWidgets('right', newRightPanelWidgets);
+      updatePanelWidgets('center', newCenterPanelWidgets);
     }
   };
 
-  const handleCreateNewFile = (width: number, height: number, name: string, isTransparent: boolean) => {
-    const newFile: File = {
-      id: uuidv4(),
-      name,
-      width,
-      height,
-      position: { x: 300, y: 50 },
-      layers: [],
-      activeLayerId: null,
-    };
-    setFiles([...files, newFile]);
-    setActiveFileId(newFile.id);
-    initializeFile(newFile.id, width, height, isTransparent);
+  const handleCreateNewFile = useCallback((width: number, height: number, name: string, isTransparent: boolean) => {
+    createNewFile(width, height, name, isTransparent);
     setIsNewFileDialogOpen(false);
-  };
+  }, [createNewFile]);
 
-  const handleClose = useCallback((fileId: string) => {
-    setFiles(prevFiles => prevFiles.filter(file => file.id !== fileId));
-    if (activeFileId === fileId) {
-      setActiveFileId(prevActiveFileId => {
-        const remainingFiles = files.filter(f => f.id !== fileId);
-        return remainingFiles.length > 0 ? remainingFiles[0].id : null;
-      });
-    }
-    unloadFile(fileId);
-  }, [activeFileId, files, unloadFile]);
-
-  const handleActivate = useCallback((fileId: string) => {
-    setActiveFileId(fileId);
-  }, []);
-
-  const handleReorder = useCallback((newOrder: File[]) => {
-    setFiles(newOrder);
-  }, []);
-
-  const handleSaveFile = (fileId: string) => {
-    const file = files.find(f => f.id === fileId);
-    if (file) {
-      saveFile(fileId, file.name, file.width, file.height);
-    }
-  };
-
-  const handleLoadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLoadFile = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       try {
-        const loadedData = await loadFile(file);
-        const newFile: File = {
-          id: loadedData.id,
-          name: loadedData.name,
-          width: loadedData.width,
-          height: loadedData.height,
-          position: { x: 300, y: 50 },
-          layers: loadedData.layers,
-          activeLayerId: loadedData.activeLayerId,
-        };
-        setFiles(prevFiles => [...prevFiles, newFile]);
-        setActiveFileId(newFile.id);
+        await loadFile(file);
       } catch (error) {
         console.error('Failed to load file:', error);
       }
     }
-  };
-
-  const handleExportAsPNG = (fileId: string) => {
-    const file = files.find(f => f.id === fileId);
-    if (file) {
-      exportAsPNG(fileId, file.name);
-    }
-  };
+  }, [loadFile]);
 
   const handleLoadPalette = useCallback(() => {
     const input = document.createElement('input');
@@ -185,30 +114,6 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
     };
     input.click();
   }, [activeFileId, loadPalette]);
-
-  const handleSaveASEPalette = useCallback((fileId: string) => {
-    const blob = saveASEPalette(fileId);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `palette.ase`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [saveASEPalette]);
-
-  const handleSaveGPLPalette = useCallback((fileId: string) => {
-    const blob = saveGPLPalette(fileId);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `palette.gpl`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [saveGPLPalette]);
 
   const renderWidgets = (panelWidgets: string[], panelId: string) => (
     <SortableContext items={panelWidgets} strategy={verticalListSortingStrategy}>
@@ -276,9 +181,9 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
           <CanvasWidget
             files={files}
             activeFileId={activeFileId}
-            onClose={handleClose}
-            onActivate={handleActivate}
-            onReorder={handleReorder}
+            onClose={closeFile}
+            onActivate={activateFile}
+            onReorder={reorderFiles}
             isDraggable={!isWindowsLocked}
           />
         );
@@ -294,19 +199,6 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
     <div className="h-screen flex flex-col">
       <MenuBar 
         onCreateNewFile={() => setIsNewFileDialogOpen(true)}
-        files={files}
-        activeFileId={activeFileId}
-        onSwitchFile={handleActivate}
-        onSaveFile={handleSaveFile}
-        onLoadFile={() => fileInputRef.current?.click()}
-        onExportAsPNG={handleExportAsPNG}
-        isWindowsLocked={isWindowsLocked}
-        setIsWindowsLocked={setIsWindowsLocked}
-        toggleWidget={toggleWidget}
-        widgetVisibility={widgetVisibility}
-        onLoadPalette={handleLoadPalette}
-        onSaveASEPalette={handleSaveASEPalette}
-        onSaveGPLPalette={handleSaveGPLPalette}
       />
       <DndContext 
         onDragStart={onDragStart}

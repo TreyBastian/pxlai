@@ -8,15 +8,8 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, h
 import { CSS } from '@dnd-kit/utilities';
 import { X } from 'lucide-react';
 import { BaseWidget } from './BaseWidget';
-
-interface CanvasWidgetProps {
-  files: File[];
-  activeFileId: string | null;
-  onClose: (fileId: string) => void;
-  onActivate: (fileId: string) => void;
-  onReorder: (newOrder: File[]) => void;
-  isDraggable: boolean;
-}
+import { useFile } from '../contexts/FileContext';
+import { useWidget } from '../contexts/WidgetContext';
 
 function SortableTab({ file, onClose, isActive }: { file: File; onClose: (fileId: string) => void; isActive: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: file.id });
@@ -49,14 +42,9 @@ function SortableTab({ file, onClose, isActive }: { file: File; onClose: (fileId
   );
 }
 
-export function CanvasWidget({
-  files,
-  activeFileId,
-  onClose,
-  onActivate,
-  onReorder,
-  isDraggable
-}: CanvasWidgetProps) {
+export function CanvasWidget() {
+  const { files, activeFileId, closeFile, activateFile, reorderFiles } = useFile();
+  const { isWindowsLocked } = useWidget();
   const [zoom, setZoom] = useState(100);
 
   const sensors = useSensors(
@@ -73,13 +61,13 @@ export function CanvasWidget({
       const oldIndex = files.findIndex((file) => file.id === active.id);
       const newIndex = files.findIndex((file) => file.id === over.id);
       const newOrder = arrayMove(files, oldIndex, newIndex);
-      onReorder(newOrder);
+      reorderFiles(newOrder);
     }
-  }, [files, onReorder]);
+  }, [files, reorderFiles]);
 
   const handleClose = useCallback((fileId: string) => {
-    onClose(fileId);
-  }, [onClose]);
+    closeFile(fileId);
+  }, [closeFile]);
 
   const handleWheel = useCallback((event: React.WheelEvent) => {
     if (event.ctrlKey) {
@@ -97,10 +85,10 @@ export function CanvasWidget({
       id="canvasWidget"
       title={`Canvas (${Math.round(zoom)}%)`}
       onClose={() => {}}
-      isDraggable={isDraggable}
+      isDraggable={!isWindowsLocked}
     >
       <div className="w-full h-full flex flex-col">
-        <Tabs value={activeFileId || undefined} onValueChange={onActivate} className="w-full h-full flex flex-col">
+        <Tabs value={activeFileId || undefined} onValueChange={activateFile} className="w-full h-full flex flex-col">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={tabItems} strategy={horizontalListSortingStrategy}>
               <TabsList className="flex justify-start w-full overflow-x-auto">
