@@ -1,64 +1,108 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { MenuBar } from './MenuBar';
 import { ColorPicker } from './ColorPicker';
 import { ColorPalette } from './ColorPalette';
 import { ToolWidget } from './ToolWidget';
 import { useTheme } from '../contexts/ThemeContext';
-import { BaseWidget } from './BaseWidget';
 import { CanvasWidget } from './CanvasWidget';
 import { File } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { useColor } from '../contexts/ColorContext';
 import { LayersWidget } from './LayersWidget';
-import Canvas from './Canvas';
 import { NewFileDialog } from './NewFileDialog';
+import { ResizablePanel, ResizablePanelGroup, ResizableHandle } from "@/components/ui/resizable";
+import { BaseWidget } from './BaseWidget';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 
 interface PhotoshopLayoutProps {}
 
-interface WidgetData {
-  id: string;
-  component: React.ComponentType<any>;
-  isVisible: boolean;
-  position: { x: number; y: number };
-}
-
 export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
   const { theme } = useTheme();
-  const { saveFile, loadFile, initializeFile, exportAsPNG } = useColor();
-  const [widgets, setWidgets] = useState<WidgetData[]>([
-    { id: 'tools', component: ToolWidget, isVisible: true, position: { x: 10, y: 10 } },
-    { id: 'colorPalette', component: ColorPalette, isVisible: true, position: { x: 10, y: 420 } },
-    { id: 'colorPicker', component: ColorPicker, isVisible: true, position: { x: 10, y: 630 } },
-    { id: 'layers', component: LayersWidget, isVisible: true, position: { x: 220, y: 10 } },
-  ]);
-  const [isWindowsLocked, setIsWindowsLocked] = useState(false);
+  const { saveFile, loadFile, initializeFile, exportAsPNG, unloadFile, loadPalette, saveASEPalette, saveGPLPalette } = useColor();
   const [files, setFiles] = useState<File[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [isWindowsLocked, setIsWindowsLocked] = useState(true);
+  const [leftPanelWidgets, setLeftPanelWidgets] = useState(['tools', 'colorPalette', 'colorPicker']);
+  const [rightPanelWidgets, setRightPanelWidgets] = useState(['layers']);
+
+  const [widgetVisibility, setWidgetVisibility] = useState({
+    tools: true,
+    colorPalette: true,
+    colorPicker: true,
+    layers: true,
+  });
+
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const toggleWidget = (id: string) => {
-    setWidgets(widgets.map(widget => 
-      widget.id === id ? { ...widget, isVisible: !widget.isVisible } : widget
-    ));
+    setWidgetVisibility(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handlePositionChange = (id: string, newPosition: { x: number; y: number }) => {
-    setWidgets(widgets.map(widget =>
-      widget.id === id ? { ...widget, position: newPosition } : widget
-    ));
-    setFiles(files.map(file =>
-      file.id === id ? { ...file, position: newPosition } : file
-    ));
+  const onDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
   };
 
-  const widgetVisibility = Object.fromEntries(
-    widgets.map(widget => [widget.id, widget.isVisible])
-  );
+  const { setNodeRef: setLeftPanelRef } = useDroppable({ id: 'leftPanel' });
+  const { setNodeRef: setRightPanelRef } = useDroppable({ id: 'rightPanel' });
+  const { setNodeRef: setCenterPanelRef } = useDroppable({ id: 'centerPanel' });
+
+  const [centerPanelWidgets, setCenterPanelWidgets] = useState<string[]>(['canvasWidget']);
+
+  const onDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      let activePanel, overPanel;
+
+      if (leftPanelWidgets.includes(activeId)) activePanel = 'left';
+      else if (rightPanelWidgets.includes(activeId)) activePanel = 'right';
+      else if (centerPanelWidgets.includes(activeId)) activePanel = 'center';
+
+      if (overId === 'leftPanel') overPanel = 'left';
+      else if (overId === 'rightPanel') overPanel = 'right';
+      else if (overId === 'centerPanel') overPanel = 'center';
+      else {
+        if (leftPanelWidgets.includes(overId)) overPanel = 'left';
+        else if (rightPanelWidgets.includes(overId)) overPanel = 'right';
+        else if (centerPanelWidgets.includes(overId)) overPanel = 'center';
+      }
+
+      const getUpdatedPanels = () => {
+        let newLeftPanelWidgets = [...leftPanelWidgets];
+        let newRightPanelWidgets = [...rightPanelWidgets];
+        let newCenterPanelWidgets = [...centerPanelWidgets];
+
+        // Remove the active widget from its original panel
+        if (activePanel === 'left') newLeftPanelWidgets = newLeftPanelWidgets.filter(id => id !== activeId);
+        else if (activePanel === 'right') newRightPanelWidgets = newRightPanelWidgets.filter(id => id !== activeId);
+        else if (activePanel === 'center') newCenterPanelWidgets = newCenterPanelWidgets.filter(id => id !== activeId);
+
+        // Add the active widget to its new panel
+        if (overPanel === 'left') newLeftPanelWidgets.push(activeId);
+        else if (overPanel === 'right') newRightPanelWidgets.push(activeId);
+        else if (overPanel === 'center') newCenterPanelWidgets.push(activeId);
+
+        return { newLeftPanelWidgets, newRightPanelWidgets, newCenterPanelWidgets };
+      };
+
+      const { newLeftPanelWidgets, newRightPanelWidgets, newCenterPanelWidgets } = getUpdatedPanels();
+
+      setLeftPanelWidgets(newLeftPanelWidgets);
+      setRightPanelWidgets(newRightPanelWidgets);
+      setCenterPanelWidgets(newCenterPanelWidgets);
+    }
+  };
 
   const handleCreateNewFile = (width: number, height: number, name: string, isTransparent: boolean) => {
-    console.log(`Creating new file: width=${width}, height=${height}, name=${name}, isTransparent=${isTransparent}`);
     const newFile: File = {
       id: uuidv4(),
       name,
@@ -71,26 +115,27 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
     setFiles([...files, newFile]);
     setActiveFileId(newFile.id);
     initializeFile(newFile.id, width, height, isTransparent);
+    setIsNewFileDialogOpen(false);
   };
 
-  const handleSwitchFile = (fileId: string) => {
-    setActiveFileId(fileId);
-  };
-
-  const handleCloseFile = (fileId: string) => {
-    setFiles(files.filter(file => file.id !== fileId));
+  const handleClose = useCallback((fileId: string) => {
+    setFiles(prevFiles => prevFiles.filter(file => file.id !== fileId));
     if (activeFileId === fileId) {
-      setActiveFileId(files.length > 1 ? files[0].id : null);
+      setActiveFileId(prevActiveFileId => {
+        const remainingFiles = files.filter(f => f.id !== fileId);
+        return remainingFiles.length > 0 ? remainingFiles[0].id : null;
+      });
     }
-  };
+    unloadFile(fileId);
+  }, [activeFileId, files, unloadFile]);
 
-  const handleActivateFile = (fileId: string) => {
+  const handleActivate = useCallback((fileId: string) => {
     setActiveFileId(fileId);
-  };
+  }, []);
 
-  const handleActivateWidget = (id: string) => {
-    setActiveWidgetId(id);
-  };
+  const handleReorder = useCallback((newOrder: File[]) => {
+    setFiles(newOrder);
+  }, []);
 
   const handleSaveFile = (fileId: string) => {
     const file = files.find(f => f.id === fileId);
@@ -104,8 +149,6 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
     if (file) {
       try {
         const loadedData = await loadFile(file);
-        console.log(`Loaded file version: ${loadedData.version}`);
-        
         const newFile: File = {
           id: loadedData.id,
           name: loadedData.name,
@@ -117,30 +160,9 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
         };
         setFiles(prevFiles => [...prevFiles, newFile]);
         setActiveFileId(newFile.id);
-
-        // Load the canvas data
-        setTimeout(() => {
-          const canvas = document.querySelector(`canvas[data-file-id="${newFile.id}"]`) as HTMLCanvasElement;
-          if (canvas) {
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            img.onload = () => {
-              ctx?.drawImage(img, 0, 0);
-            };
-            img.src = loadedData.canvasData;
-          }
-        }, 0);
       } catch (error) {
         console.error('Failed to load file:', error);
       }
-    }
-  };
-
-  const handleBackgroundClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Check if the click target is the background div itself
-    if (e.target === e.currentTarget) {
-      setActiveFileId(null);
-      setActiveWidgetId(null);
     }
   };
 
@@ -151,63 +173,175 @@ export default function PhotoshopLayout({}: PhotoshopLayoutProps) {
     }
   };
 
+  const handleLoadPalette = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ase,.gpl';
+    input.onchange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file && activeFileId) {
+        await loadPalette(activeFileId, file);
+      }
+    };
+    input.click();
+  }, [activeFileId, loadPalette]);
+
+  const handleSaveASEPalette = useCallback((fileId: string) => {
+    const blob = saveASEPalette(fileId);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `palette.ase`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [saveASEPalette]);
+
+  const handleSaveGPLPalette = useCallback((fileId: string) => {
+    const blob = saveGPLPalette(fileId);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `palette.gpl`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [saveGPLPalette]);
+
+  const renderWidgets = (panelWidgets: string[], panelId: string) => (
+    <SortableContext items={panelWidgets} strategy={verticalListSortingStrategy}>
+      <ResizablePanelGroup direction="vertical">
+        {panelWidgets.map((widgetId, index) => (
+          <React.Fragment key={widgetId}>
+            {index > 0 && <ResizableHandle />}
+            <ResizablePanel>
+              {renderWidget(widgetId)}
+            </ResizablePanel>
+          </React.Fragment>
+        ))}
+      </ResizablePanelGroup>
+    </SortableContext>
+  );
+
+  const renderWidget = (widgetId: string) => {
+    switch (widgetId) {
+      case 'tools':
+        return (
+          <BaseWidget
+            id={widgetId}
+            title="Tools"
+            onClose={() => toggleWidget(widgetId)}
+            isDraggable={!isWindowsLocked}
+          >
+            <ToolWidget />
+          </BaseWidget>
+        );
+      case 'colorPalette':
+        return (
+          <BaseWidget
+            id={widgetId}
+            title="Color Palette"
+            onClose={() => toggleWidget(widgetId)}
+            isDraggable={!isWindowsLocked}
+          >
+            <ColorPalette fileId={activeFileId || null} />
+          </BaseWidget>
+        );
+      case 'colorPicker':
+        return (
+          <BaseWidget
+            id={widgetId}
+            title="Color Picker"
+            onClose={() => toggleWidget(widgetId)}
+            isDraggable={!isWindowsLocked}
+          >
+            <ColorPicker fileId={activeFileId || null} />
+          </BaseWidget>
+        );
+      case 'layers':
+        return (
+          <BaseWidget
+            id={widgetId}
+            title="Layers"
+            onClose={() => toggleWidget(widgetId)}
+            isDraggable={!isWindowsLocked}
+          >
+            <LayersWidget fileId={activeFileId || null} />
+          </BaseWidget>
+        );
+      case 'canvasWidget':
+        return (
+          <CanvasWidget
+            files={files}
+            activeFileId={activeFileId}
+            onClose={handleClose}
+            onActivate={handleActivate}
+            onReorder={handleReorder}
+            isDraggable={!isWindowsLocked}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const memoizedFiles = useMemo(() => files, [files]);
+  const memoizedActiveFileId = useMemo(() => activeFileId, [activeFileId]);
+
   return (
     <div className="h-screen flex flex-col">
       <MenuBar 
-        onCreateNewFile={handleCreateNewFile}
-        toggleWidget={toggleWidget}
-        isWindowsLocked={isWindowsLocked}
-        setIsWindowsLocked={setIsWindowsLocked}
-        widgetVisibility={widgetVisibility}
+        onCreateNewFile={() => setIsNewFileDialogOpen(true)}
         files={files}
         activeFileId={activeFileId}
-        onSwitchFile={handleSwitchFile}
+        onSwitchFile={handleActivate}
         onSaveFile={handleSaveFile}
         onLoadFile={() => fileInputRef.current?.click()}
         onExportAsPNG={handleExportAsPNG}
+        isWindowsLocked={isWindowsLocked}
+        setIsWindowsLocked={setIsWindowsLocked}
+        toggleWidget={toggleWidget}
+        widgetVisibility={widgetVisibility}
+        onLoadPalette={handleLoadPalette}
+        onSaveASEPalette={handleSaveASEPalette}
+        onSaveGPLPalette={handleSaveGPLPalette}
       />
-      <div 
-        className="flex-grow relative"
-        onClick={handleBackgroundClick} // Add this line
+      <DndContext 
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd} 
+        collisionDetection={closestCenter}
       >
-        {/* Render canvas widgets first */}
-        {files.map((file) => (
-          <CanvasWidget
-            key={file.id}
-            file={file}
-            isActive={file.id === activeFileId}
-            onClose={() => handleCloseFile(file.id)}
-            onPositionChange={handlePositionChange}
-            isLocked={isWindowsLocked}
-            onActivate={handleActivateFile}
-            zIndex={files.indexOf(file)}
-          />
-        ))}
-        {/* Render UI widgets on top */}
-        {widgets.map(({ id, component: Widget, isVisible, position }) => (
-          isVisible && (
-            <BaseWidget 
-              key={id} 
-              id={id} 
-              title={id.charAt(0).toUpperCase() + id.slice(1)}
-              onClose={() => toggleWidget(id)} 
-              position={position}
-              onPositionChange={handlePositionChange}
-              isLocked={isWindowsLocked}
-              initialSize={id === 'colorPicker' ? { width: 600, height: 600 } : undefined}
-              isActive={id === activeWidgetId}
-              onActivate={() => handleActivateWidget(id)}
-              zIndex={1000 + widgets.indexOf({ id, component: Widget, isVisible, position })}
-            >
-              {id === 'colorPalette' || id === 'colorPicker' || id === 'layers' ? (
-                <Widget fileId={activeFileId || null} />
-              ) : (
-                <Widget />
-              )}
-            </BaseWidget>
-          )
-        ))}
-      </div>
+        <ResizablePanelGroup direction="horizontal" className="flex-grow">
+          <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+            <div ref={setLeftPanelRef} className="h-full">
+              {renderWidgets(leftPanelWidgets, 'leftPanel')}
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle />
+
+          <ResizablePanel defaultSize={60}>
+            <div ref={setCenterPanelRef} className="h-full">
+              {renderWidgets(centerPanelWidgets, 'centerPanel')}
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle />
+
+          <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+            <div ref={setRightPanelRef} className="h-full">
+              {renderWidgets(rightPanelWidgets, 'rightPanel')}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+
+        <DragOverlay>
+          {activeId ? renderWidget(activeId) : null}
+        </DragOverlay>
+      </DndContext>
+
       <NewFileDialog
         isOpen={isNewFileDialogOpen}
         onClose={() => setIsNewFileDialogOpen(false)}
