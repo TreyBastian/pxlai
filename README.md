@@ -1,50 +1,16 @@
-# React + TypeScript + Vite
+# PixlAI - The broken browser pixel editor no one wanted built with AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Over the course of a week on Twitch I decided to try and develop a fully featured pixel art editor using nothing but LLM promps.
 
-Currently, two official plugins are available:
+There were some definite ups and downs during this process you can watch all the vods over at [twitch.tv/trey_bastian](https://twitch.tv/trey_bastian)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**This thing is broken, we tried to fix some canvas issues on Thursday and really got it into a broken state that has been challenging and frustrating trying to recover from**
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
-
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
-
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
-
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+### What have we had working at various points in time during this?
+- A fully floating positional UI layout
+- The ability to load and save files with versioning and graceful fallback to load old versioned files
+- layers with visibility toggleing and re-rodering
+- a canvas to draw on with a virtual canvas to manage layer drawing
+- editable and re-orderable color palette with the ability to save or load Gimp or Photoshop palette files
+- HSLA, RGBA, CMYKA color sliders that you can seamlessly switch between a use
+- Export to PNG
