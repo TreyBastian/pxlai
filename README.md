@@ -1,4 +1,4 @@
-# PixlAI - The broken browser pixel editor no one wanted built with AI
+# PxlAI - The broken browser pixel editor no one wanted built with AI
 
 Over the course of a week on Twitch I decided to try and develop a fully featured pixel art editor using nothing but LLM promps.
 
